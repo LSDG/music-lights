@@ -6,19 +6,23 @@ import mainLoop
 
 
 class SampleOutput(object):
-    def __init__(self, sampleGen):
+    def __init__(self, sampleGen, config):
         self.sampleGen = sampleGen
         sampleGen.onSongChanged.add(self.onSongChanged)
 
         self.pcm = None
+
+        self.debug = config.get_def('output', 'debug', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 
     def onSongChanged(self, *args, **kwargs):
         ansi.debug('onSongChanged')
 
         ansi.info('channels: {}; samplerate: {}; period size: {}', self.sampleGen.channels, self.sampleGen.samplerate, self.sampleGen.framesPerChunk)
 
-        if not self.pcm:
-            self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK)  # mode=alsaaudio.PCM_NORMAL)
+        if self.pcm:
+            self.pcm.close()
+
+        self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK)  # mode=alsaaudio.PCM_NORMAL)
 
         self.pcm.setchannels(self.sampleGen.channels)
         self.pcm.setrate(self.sampleGen.samplerate)
@@ -29,12 +33,13 @@ class SampleOutput(object):
         mainLoop.currentProcess.afterEachLoop = self.queueNextSound
 
     def queueNextSound(self, event=None):
-        ansi.stdout(
-                "{cursor.col.0}{clear.line.all}Current time:"
-                    " {style.bold}{file.elapsedTime: >7.2f}{style.none} / {file.duration: <7.2f}",
-                file=self.sampleGen,
-                suppressNewline=True
-                )
+        if self.debug:
+            ansi.stdout(
+                    "{cursor.col.0}{clear.line.all}Current time:"
+                        " {style.bold}{file.elapsedTime: >7.2f}{style.none} / {file.duration: <7.2f}",
+                    file=self.sampleGen,
+                    suppressNewline=True
+                    )
 
         chunk = self.sampleGen.nextChunk()
         if self.pcm:
