@@ -1,5 +1,9 @@
 #!/bin/env python
+from __future__ import print_function
 import time
+
+#import sys
+#sys.exit(0)
 
 import msplib
 
@@ -26,7 +30,10 @@ launchpad.write(P2SEL, 0x00)
 launchpad.write(P2SEL2, 0x00)
 
 
+import ConfigParser
+import collections
 import datetime
+import os
 import sys
 
 from numpy import array_split, short, fromstring
@@ -38,7 +45,7 @@ import audioread
 
 import pyaudio
 
-#import ansi
+import ansi
 
 
 # The number of spectrum analyzer bands (also light output channels) to use.
@@ -50,31 +57,61 @@ delayBetweenUpdates = 0.05
 bytes_per_frame_per_channel = 2
 
 
+def statusChar(status):
+    if status == pyaudio.paOutputOverflow:
+        return "\033[1;33mO\033[m"
+    elif status == pyaudio.paOutputUnderflow:
+        return "\033[1;31mU\033[m"
+    else:
+        return "."
+
+
 filename = sys.argv[1]
 
 # Warm up ANFFT, allowing it to determine which FFT algorithm will work fastest on this machine.
 anfft.fft(rand_array(1024), measure=True)
 
-lastCallTime = datetime.datetime.now()
-
 # Update PORT2 pins _every other_ time we update lights; otherwise, we get really bad stutter because mspdebug
 # apparently blocks until the first byte is verified as written before writing the second.
 port2 = False
 
+totalFramesRead = 0.0
+recentFrameStatuses = collections.deque(' ' * 64, maxlen=64)
+lastCallTime = datetime.datetime.now()
+
 with audioread.audio_open(filename) as inFile:
-    print inFile.channels, inFile.samplerate, inFile.duration
+    thresholds = [0.5] * frequencyBands
+    if os.path.exists(filename + '.ini'):
+        cp = ConfigParser.SafeConfigParser()
+        cp.read([filename + '.ini'])
+        thresholds = map(str.strip, cp.get('spectrum', 'thresholds').split(','))
+
     inFileIter = None
+    abort = False
 
     # Instantiate PyAudio.
     audio = pyaudio.PyAudio()
 
     def callback(in_data, frame_count, time_info, status):
-        global inFileIter, lastCallTime, port2
+        global inFileIter, lastCallTime, port2, totalFramesRead, recentFrameStatuses, abort
+
+        if abort:
+            return (None, pyaudio.paAbort)
 
         if not inFileIter:
             inFileIter = inFile.read_data(frame_count * inFile.channels * bytes_per_frame_per_channel)
 
         data = next(inFileIter)
+
+        totalFramesRead += frame_count
+
+        recentFrameStatuses.appendleft(statusChar(status))
+
+        ansi.stdout("{cursor.col.0}{clear.line.all}Current time:"
+                    " {style.bold}{elapsedTime: >7.2f}{style.none} / {elapsedTime: <7.2f}"
+                    " {style.bold.fg.black}[{style.none}{status}{style.bold.fg.black}]{style.none}",
+                elapsedTime=totalFramesRead / inFile.samplerate, totalTime=inFile.duration,
+                status=''.join(recentFrameStatuses), suppressNewline=True)
 
         thisCallTime = datetime.datetime.now()
         if (thisCallTime - lastCallTime).total_seconds() > delayBetweenUpdates:
@@ -87,23 +124,8 @@ with audioread.audio_open(filename) as inFile:
 
             spectrum = map((lambda arr: sum(arr) / len(arr)), bands)
 
-            #ansi.stdout('{cursor.row.0}')
-            #for row in range(70 * 4, 0, -4):
-            #    print(' '.join('#' if level > row else ' ' for level in spectrum))
-
-            #ansi.stdout('{cursor.row.0}{clear.line.end}{}',
-            #ansi.stdout('{cursor.row.0}{clear.screen.end}{}',
-            #        '\n'.join('=' * int(level) for level in spectrum)
-            #        )
-            #ansi.stdout('{cursor.row.0}')
-            #for level in spectrum:
-            #    ansi.stdout('{clear.line.end}{}', '=' * int(level))
-            #ansi.stdout('{cursor.row.0}{clear.screen.end}{}',
-            #        '\n'.join('=' * int(level / 3) + ' ' * int(240 - level / 3) for level in spectrum)
-            #        )
-
             lightStates = [
-                    1 << channel if level > 0.5 else 0
+                    1 << channel if level > thresholds[channel] else 0
                     for channel, level in enumerate(spectrum)
                     ]
             lightStates = sum(lightStates)
@@ -117,6 +139,16 @@ with audioread.audio_open(filename) as inFile:
 
         return (data, pyaudio.paContinue)
 
+    print()
+    ansi.stdout("Playing audio file: {style.fg.blue}{}{style.none}", filename)
+    ansi.stdout("{style.bold.fg.black}channels:{style.none} {inFile.channels}"
+                "   {style.bold.fg.black}sample rate:{style.none} {inFile.samplerate}"
+                "   {style.bold.fg.black}duration:{style.none} {inFile.duration}",
+            inFile=inFile)
+    #print("Playing audio file: \033[34m{}\033[m".format(filename))
+    #print("\033[1;30mchannels:\033[m {}   \033[1;30msample rate:\033[m {}   \033[1;30mduration:\033[m {}".format(
+            #inFile.channels, inFile.samplerate, inFile.duration))
+
     stream = audio.open(
             format=pyaudio.paInt16,
             channels=inFile.channels,
@@ -126,8 +158,17 @@ with audioread.audio_open(filename) as inFile:
             )
 
     # Wait for stream to finish.
-    while stream.is_active():
+    try:
+        while stream.is_active():
+            time.sleep(0.01)
+    except KeyboardInterrupt:
+        print()
+        print("User interrupted; stopping.")
+        abort = True
         time.sleep(0.1)
+
+    print()
+    print("Stopping audio...")
 
     # Stop stream.
     stream.stop_stream()
@@ -136,3 +177,5 @@ with audioread.audio_open(filename) as inFile:
 
     # Close PyAudio.
     audio.terminate()
+
+    ansi.done()
