@@ -41,6 +41,9 @@ import pyaudio
 #import ansi
 
 
+# The number of spectrum analyzer bands (also light output channels) to use.
+frequencyBands = 16
+
 # Slow the light state changes down to every 0.05 seconds.
 delayBetweenUpdates = 0.05
 
@@ -79,8 +82,10 @@ with audioread.audio_open(filename) as inFile:
             dataArr = fromstring(data, dtype=short)
             normalized = dataArr / float(2 ** (bytes_per_frame_per_channel * 8))
 
-            #spectrum = map((lambda arr: sum(arr) / len(arr)), array_split(abs(anfft.rfft(normalized)), 256))
-            spectrum = map(sum, array_split(abs(anfft.rfft(normalized)), 16))  # Cut the spectrum down to 16 channels.
+            # Cut the spectrum down to the appropriate number of bands.
+            bands = array_split(abs(anfft.rfft(normalized)), frequencyBands)
+
+            spectrum = map((lambda arr: sum(arr) / len(arr)), bands)
 
             #ansi.stdout('{cursor.row.0}')
             #for row in range(70 * 4, 0, -4):
@@ -98,7 +103,7 @@ with audioread.audio_open(filename) as inFile:
             #        )
 
             lightStates = [
-                    1 << channel if level > 40 else 0
+                    1 << channel if level > 0.5 else 0
                     for channel, level in enumerate(spectrum)
                     ]
             lightStates = sum(lightStates)
