@@ -99,7 +99,8 @@ totalFramesRead = 0.0
 recentFrameStatuses = collections.deque(' ' * 64, maxlen=64)
 lastCallTime = datetime.datetime.now()
 
-for filename in cycle(files):
+
+def playFile():
     with audioread.audio_open(filename) as inFile:
         thresholds = defaultThresholds
         order = defaultOrder
@@ -109,6 +110,7 @@ for filename in cycle(files):
             thresholds = map(float, cp.get('spectrum', 'thresholds').split(','))
             order = map(int, cp.get('spectrum', 'channelOrder').split(','))
 
+        global inFileIter, abort
         inFileIter = None
         abort = False
 
@@ -191,7 +193,7 @@ for filename in cycle(files):
             print()
             print("User interrupted; stopping.")
             abort = True
-            time.sleep(0.1)
+            time.sleep(0.2)
 
         print()
         print("Stopping audio...")
@@ -201,7 +203,14 @@ for filename in cycle(files):
         stream.close()
         inFile.close()
 
+try:
+    for filename in cycle(files):
+        playFile()
+except KeyboardInterrupt:
+    print()
+    print("User interrupted; outer loop stopping")
+
     # Close PyAudio.
-    audio.terminate()
+    #audio.terminate()
 
     ansi.done()
