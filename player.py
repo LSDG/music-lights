@@ -3,13 +3,27 @@ import time
 
 import msplib
 
+# Launchpad registers
+WDTCTL = 0x120
+P1DIR = 0x22
+P1SEL = 0x26
+P1SEL2 = 0x41
+P2DIR = 0x2A
+P2SEL = 0x2E
+P2SEL2 = 0x42
+
 # Instantiate the launchpad control class.
 launchpad = msplib.MSP430()
 
 # Initialize the launchpad.
 time.sleep(2)
-launchpad.write(0x120, 0x5A, 0x80)
-launchpad.write(0x22, 0xFF)
+launchpad.write(WDTCTL, 0x5A, 0x80)
+launchpad.write(P1DIR, 0xFF)
+launchpad.write(P1SEL, 0x00)
+launchpad.write(P1SEL2, 0x00)
+launchpad.write(P2DIR, 0xFF)
+launchpad.write(P2SEL, 0x00)
+launchpad.write(P2SEL2, 0x00)
 
 
 import datetime
@@ -27,6 +41,9 @@ import pyaudio
 #import ansi
 
 
+# Slow the light state changes down to every 0.05 seconds.
+delayBetweenUpdates = 0.05
+
 bytes_per_frame_per_channel = 2
 
 
@@ -37,6 +54,10 @@ anfft.fft(rand_array(1024), measure=True)
 
 lastCallTime = datetime.datetime.now()
 
+# Update PORT2 pins _every other_ time we update lights; otherwise, we get really bad stutter because mspdebug
+# apparently blocks until the first byte is verified as written before writing the second.
+port2 = False
+
 with audioread.audio_open(filename) as inFile:
     print inFile.channels, inFile.samplerate, inFile.duration
     inFileIter = None
@@ -45,16 +66,15 @@ with audioread.audio_open(filename) as inFile:
     audio = pyaudio.PyAudio()
 
     def callback(in_data, frame_count, time_info, status):
-        global inFileIter, lastCallTime
+        global inFileIter, lastCallTime, port2
 
         if not inFileIter:
             inFileIter = inFile.read_data(frame_count * inFile.channels * bytes_per_frame_per_channel)
 
         data = next(inFileIter)
 
-        # Slow the light state changes down to every 0.05 seconds.
         thisCallTime = datetime.datetime.now()
-        if (thisCallTime - lastCallTime).total_seconds() > 0.05:
+        if (thisCallTime - lastCallTime).total_seconds() > delayBetweenUpdates:
             lastCallTime = thisCallTime
             dataArr = fromstring(data, dtype=short)
             normalized = dataArr / float(2 ** (bytes_per_frame_per_channel * 8))
@@ -79,11 +99,16 @@ with audioread.audio_open(filename) as inFile:
 
             lightStates = [
                     1 << channel if level > 40 else 0
-                    for channel, level in enumerate(spectrum[:8])
+                    for channel, level in enumerate(spectrum)
                     ]
             lightStates = sum(lightStates)
 
-            launchpad.write(0x21, lightStates)
+            if not port2:
+                launchpad.write(0x21, lightStates >> 8 & 0xFF)
+            else:
+                launchpad.write(0x29, lightStates & 0x1F)
+
+            port2 = not port2
 
         return (data, pyaudio.paContinue)
 
