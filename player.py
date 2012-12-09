@@ -3,40 +3,27 @@ from __future__ import print_function
 import time
 from multiprocessing import Process, Queue
 
+import RPi.GPIO as GPIO
+
 #import sys
 #sys.exit(0)
 
 import msplib
 
-# Launchpad registers
-WDTCTL = 0x120
-P1DIR = 0x22
-P1SEL = 0x26
-P1SEL2 = 0x41
-P2DIR = 0x2A
-P2SEL = 0x2E
-P2SEL2 = 0x42
+pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 
 def launchProc(q):
-    # Instantiate the launchpad control class.
-    launchpad = msplib.MSP430()
-
-    # Initialize the launchpad.
-    time.sleep(2)
-    launchpad.write(WDTCTL, 0x5A, 0x80)
-    launchpad.write(P1DIR, 0xFF)
-    launchpad.write(P1SEL, 0x00)
-    launchpad.write(P1SEL2, 0x00)
-    launchpad.write(P2DIR, 0xFF)
-    launchpad.write(P2SEL, 0x00)
-    launchpad.write(P2SEL2, 0x00)
+    for pin in pins:
+        GPIO.setup(pin, GPIO.OUT)
 
     while True :
         msg = q.get(True)
 
         if msg == 'end':
-            break;
-        launchpad.write(msg)
+            break
+
+        for channel, value in enumerate(msg):
+            GPIO.output(pins[channel], value)
 
 q = Queue()
 p = Process(target=launchProc, args=(q,))
@@ -100,7 +87,7 @@ recentFrameStatuses = collections.deque(' ' * 64, maxlen=64)
 lastCallTime = datetime.datetime.now()
 
 
-def playFile():
+def playFile(filename):
     with audioread.audio_open(filename) as inFile:
         thresholds = defaultThresholds
         order = defaultOrder
@@ -150,20 +137,9 @@ def playFile():
 
                 spectrum = map((lambda arr: sum(arr) / len(arr)), bands)
 
-                lightStates = [
-                        1 << channel if level > thresholds[channel] else 0
-                        for channel, level in enumerate(spectrum)
-                        ]
-                lightStates = sum(lightStates)
+                lightStates = [ level > thresholds[channel] for channel, level in enumerate(spectrum) ]
 
-                if not port2:
-                    #q.put(0x21, 0xFF)
-                    q.put(0x21, lightStates >> 8 & 0xFF)
-                else:
-                    #q.put(0x29, 0xFF)
-                    q.put(0x29, lightStates & 0x1F)
-
-                port2 = not port2
+                q.put(lightStates)
 
             return (data, pyaudio.paContinue)
 
@@ -205,7 +181,7 @@ def playFile():
 
 try:
     for filename in cycle(files):
-        playFile()
+        playFile(filename)
 except KeyboardInterrupt:
     print()
     print("User interrupted; outer loop stopping")
