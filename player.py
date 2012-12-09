@@ -8,8 +8,6 @@ import RPi.GPIO as GPIO
 #import sys
 #sys.exit(0)
 
-import msplib
-
 pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 
 def launchProc(q):
@@ -77,10 +75,6 @@ files = sys.argv[1:]
 
 # Warm up ANFFT, allowing it to determine which FFT algorithm will work fastest on this machine.
 anfft.fft(rand_array(1024), measure=True)
-
-# Update PORT2 pins _every other_ time we update lights; otherwise, we get really bad stutter because mspdebug
-# apparently blocks until the first byte is verified as written before writing the second.
-port2 = False
 
 totalFramesRead = 0.0
 recentFrameStatuses = collections.deque(' ' * 64, maxlen=64)
