@@ -1,0 +1,15 @@
+#!/usr/bin/fish
+
+set retry 0
+
+function --on-signal SIGSEGV rerun
+	echo Rerun here!
+	set retry 1
+	virtenv/bin/python player.py (find /media/usb/ -name '*.mp3' | sort -R)
+end
+
+virtenv/bin/python player.py (find /media/usb/ -name '*.mp3' | sort -R)
+
+while [ $retry ];
+	virtenv/bin/python player.py (find /media/usb/ -name '*.mp3' | sort -R);
+end

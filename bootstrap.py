@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ## WARNING: This file is generated
-#!/usr/bin/env python2
+#!/usr/bin/env python
 """Create a "virtual" Python installation
 """
 
