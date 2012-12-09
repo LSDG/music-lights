@@ -9,7 +9,6 @@ import virtualenv
 requiredPackages = """
 anfft
 audioread
-Cython
 numpy
 PyAudio
 """.split()

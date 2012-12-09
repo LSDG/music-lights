@@ -1899,7 +1899,7 @@ def create_bootstrap_script(extra_text, python_version=''):
 import subprocess
 
 def after_install(options, virt_env_dir):
-    requiredPackages = ['anfft', 'audioread', 'Cython', 'numpy', 'PyAudio']
+    requiredPackages = ['anfft', 'audioread', 'numpy', 'PyAudio']
     subprocess.call([join(virt_env_dir, 'bin', 'pip'), 'install'] + requiredPackages)
 
 def adjust_options(options, args):
