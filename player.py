@@ -178,6 +178,6 @@ except KeyboardInterrupt:
     print("User interrupted; outer loop stopping")
 
     # Close PyAudio.
-    #audio.terminate()
+    audio.terminate()
 
     ansi.done()
