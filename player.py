@@ -10,12 +10,13 @@ import RPi.GPIO as GPIO
 
 pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 
+
 def launchProc(q):
     GPIO.setmode(GPIO.BCM)
     for pin in pins:
         GPIO.setup(pin, GPIO.OUT)
 
-    while True :
+    while True:
         msg = q.get(True)
 
         if msg == 'end':
@@ -62,6 +63,7 @@ bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel',
 
 defaultThresholds = map(float, gcp.get('spectrum', 'thresholds').split(','))
 defaultOrder = map(int, gcp.get('spectrum', 'channelOrder').split(','))
+
 
 def statusChar(status):
     if status == pyaudio.paOutputOverflow:
@@ -132,7 +134,7 @@ def playFile(filename):
 
                 spectrum = map((lambda arr: sum(arr) / len(arr)), bands)
 
-                lightStates = [ level > thresholds[channel] for channel, level in enumerate(spectrum) ]
+                lightStates = [level > thresholds[channel] for channel, level in enumerate(spectrum)]
 
                 q.put(lightStates)
 
