@@ -3,14 +3,11 @@ from __future__ import print_function
 import time
 from multiprocessing import Process, Queue
 
-import RPi.GPIO as GPIO
-
-#import sys
-#sys.exit(0)
-
 pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 
 def launchProc(q):
+    import RPi.GPIO as GPIO
+
     GPIO.setmode(GPIO.BCM)
     for pin in pins:
         GPIO.setup(pin, GPIO.OUT)
@@ -81,6 +78,8 @@ totalFramesRead = 0.0
 recentFrameStatuses = collections.deque(' ' * 64, maxlen=64)
 lastCallTime = datetime.datetime.now()
 
+# Instantiate PyAudio.
+audio = pyaudio.PyAudio()
 
 def playFile(filename):
     with audioread.audio_open(filename) as inFile:
@@ -95,9 +94,6 @@ def playFile(filename):
         global inFileIter, abort
         inFileIter = None
         abort = False
-
-        # Instantiate PyAudio.
-        audio = pyaudio.PyAudio()
 
         def callback(in_data, frame_count, time_info, status):
             global inFileIter, lastCallTime, port2, totalFramesRead, recentFrameStatuses, abort
