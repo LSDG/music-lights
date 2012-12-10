@@ -148,8 +148,12 @@ class SampleGen(object):
         if self.sampleIter is None:
             self._loadNextFile()
 
-        self.currentData = buffer(next(self.sampleIter))
-        #FIXME: Detect end of song, and call self._loadNextFile()!
+        try:
+            self.currentData = buffer(next(self.sampleIter))
+        except (StopIteration, AttributeError):
+            # Either we haven't loaded a song yet, or the one we were playing ended. Load another.
+            self._loadNextFile()
+            self.currentData = buffer(next(self.sampleIter))
 
         self.totalFramesRead += self.framesPerChunk
         self._currentSpectrum = None
@@ -161,13 +165,16 @@ class SampleGen(object):
 
     def close(self):
         # Stop stream.
-        self.fFile.close()
+        self.file.close()
 
 
 class SpectrumLightController(object):
     def __init__(self, sampleGen):
         self.sampleGen = sampleGen
+
         self.lastLightUpdate = datetime.datetime.now()
+        self.frequencyThresholds = defaultThresholds
+        self.frequencyBandOrder = defaultOrder
 
         sampleGen.onSample.add(self._onSample)
         sampleGen.onSongChanged.add(self._onSongChanged)
@@ -234,6 +241,8 @@ sampleGen = SampleGen(cycle(files))
 sampleGen.onSongChanged.add(displayFileStarted)
 
 output = SampleOutput(sampleGen)
+
+lights = SpectrumLightController(sampleGen)
 
 
 class QuitApplication(Exception):
