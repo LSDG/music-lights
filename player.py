@@ -5,6 +5,8 @@ import ConfigParser
 import collections
 from itertools import cycle
 from multiprocessing import Process, Queue
+import os
+from Queue import Full as QueueFull
 import sys
 
 import audioread
@@ -26,17 +28,21 @@ gcp.read('config.ini')
 
 bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel', 2))
 
+lightProcessNice = int(gcp.get('main', 'lightProcessNice', 0))
+soundProcessNice = int(gcp.get('main', 'soundProcessNice', 0))
 
 files = sys.argv[1:]
 
+queuedCallbacks = collections.deque()
+eventHandlers = dict()
+
+
+if soundProcessNice:
+    os.nice(soundProcessNice)
 
 # Initialize pygame.mixer
 pygame.mixer.pre_init(frequency=44100)
 pygame.init()
-
-
-queuedCallbacks = collections.deque()
-eventHandlers = dict()
 
 
 class SampleGen(object):
@@ -92,17 +98,17 @@ class SampleGen(object):
             self._loadNextFile()
 
         try:
-            self.currentData = buffer(next(self.sampleIter))
+            self.currentData = next(self.sampleIter)
         except (StopIteration, AttributeError):
             # Either we haven't loaded a song yet, or the one we were playing ended. Load another.
             self._loadNextFile()
-            self.currentData = buffer(next(self.sampleIter))
+            self.currentData = next(self.sampleIter)
 
         self.totalFramesRead += self.framesPerChunk
 
         queuedCallbacks.extend(self.onSample)
 
-        return pygame.mixer.Sound(self.currentData)
+        return pygame.mixer.Sound(buffer(self.currentData))
 
     def close(self):
         # Stop stream.
@@ -124,19 +130,32 @@ class SpectrumLightController(object):
         self.process.start()
 
     def _onSongChanged(self):
-        self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
+        try:
+            self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
+        except QueueFull:
+            ansi.error("Message queue to light process full! Continuing...")
 
     def _onSample(self):
-        self.messageQueue.put_nowait(('chunk', self.sampleGen.currentData))
+        try:
+            self.messageQueue.put_nowait(('chunk', self.sampleGen.currentData))
+        except QueueFull:
+            ansi.error("Message queue to light process full! Continuing...")
 
     def _onExit(self):
-        self.messageQueue.put(('end', ))
+        if self.process.is_alive():
+            try:
+                self.messageQueue.put(('end', ))
+            except QueueFull:
+                ansi.error("Message queue to light process full! Continuing...")
 
     @staticmethod
     def lightControllerProcess(messageQueue):
         import lights
 
-        analyzer = lights.SpectrumAnalyzer(messageQueue)
+        if lightProcessNice:
+            os.nice(lightProcessNice)
+
+        analyzer = lights.SpectrumAnalyzer(messageQueue, gcp)
         analyzer.loop()
 
 

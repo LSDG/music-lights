@@ -25,13 +25,13 @@ class SpectrumAnalyzer(object):
 
         self.loadSettings(config)
 
-        self.lights = SpectrumLightController(config)
+        self.lights = LightController(self, config)
 
     def loadSettings(self, gcp):
-        self.bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel', 2))
+        # The number of spectrum analyzer bands (also light output channels) to use.
+        self.frequencyBands = int(gcp.get('main', 'frequencyBands', 16))
 
-        # Slow the light state changes down to every 0.05 seconds.
-        self.delayBetweenUpdates = float(gcp.get('main', 'delayBetweenUpdates', 0.05))
+        self.bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel', 2))
 
     def _onChunk(self, data):
         self._currentSpectrum = None
@@ -42,7 +42,7 @@ class SpectrumAnalyzer(object):
     @property
     def spectrum(self):
         if self._currentSpectrum is None:
-            dataArr = fromstring(self._dataSinceLastSpectrum, dtype=short)
+            dataArr = fromstring(''.join(self._dataSinceLastSpectrum), dtype=short)
             normalized = dataArr / float(2 ** (self.bytes_per_frame_per_channel * 8))
 
             # Cut the spectrum down to the appropriate number of bands.
@@ -56,7 +56,7 @@ class SpectrumAnalyzer(object):
 
     def loop(self):
         while True:
-            message = self.messageQueue.get(True, 60)
+            message = self.messageQueue.get(timeout=60)
             messageType = message[0]
 
             if messageType == 'songChange':
@@ -69,23 +69,26 @@ class SpectrumAnalyzer(object):
                 break
 
 
-class SpectrumLightController(object):
+class LightController(object):
     def __init__(self, analyzer, config):
         self.analyzer = ref(analyzer)
         self.lastLightUpdate = datetime.datetime.now()
 
         self.loadSettings(config)
 
+        self.frequencyThresholds = self.defaultThresholds
+        self.frequencyBandOrder = self.defaultOrder
+
         GPIO.setmode(GPIO.BCM)
         for pin in pins:
             GPIO.setup(pin, GPIO.OUT)
             GPIO.output(pin, False)
 
-        self.previousLightStates = [False] * self.frequencyBands
+        self.previousLightStates = [False] * analyzer.frequencyBands
 
     def loadSettings(self, gcp):
-        # The number of spectrum analyzer bands (also light output channels) to use.
-        self.frequencyBands = int(gcp.get('main', 'frequencyBands', 16))
+        # Slow the light state changes down to every 0.05 seconds.
+        self.delayBetweenUpdates = float(gcp.get('main', 'delayBetweenUpdates', 0.05))
 
         self.defaultThresholds = map(float, gcp.get('spectrum', 'thresholds').split(','))
         self.defaultOrder = map(int, gcp.get('spectrum', 'channelOrder').split(','))
