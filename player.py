@@ -177,6 +177,8 @@ except KeyboardInterrupt:
     print()
     print("User interrupted; outer loop stopping")
 
+    q.put('end')
+
     # Close PyAudio.
     audio.terminate()
 
