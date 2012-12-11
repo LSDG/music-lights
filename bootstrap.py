@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ## WARNING: This file is generated
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """Create a "virtual" Python installation
 """
 
@@ -1899,7 +1899,7 @@ def create_bootstrap_script(extra_text, python_version=''):
 import subprocess
 
 def after_install(options, virt_env_dir):
-    requiredPackages = ['anfft', 'audioread', 'numpy', 'PyAudio']
+    requiredPackages = ['anfft', 'audioread', 'numpy', 'pygame', 'RPi.GPIO']
     subprocess.call([join(virt_env_dir, 'bin', 'pip'), 'install'] + requiredPackages)
 
 def adjust_options(options, args):

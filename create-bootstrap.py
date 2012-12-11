@@ -10,7 +10,8 @@ requiredPackages = """
 anfft
 audioread
 numpy
-PyAudio
+pygame
+RPi.GPIO
 """.split()
 
 
