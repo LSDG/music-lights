@@ -100,7 +100,18 @@ class SampleGen(object):
         queuedCallbacks.extend(self.onSongChanged)
 
         self.file = audioread.audio_open(self.currentFilename)
-        self.sampleIter = self.file.read_data(self.framesPerChunk * self.file.channels * bytes_per_frame_per_channel)
+
+        blockSize = self.framesPerChunk * self.file.channels * bytes_per_frame_per_channel
+        try:
+            # MAD (pymad)
+            self.sampleIter = self.file.read_blocks(blockSize)
+        except AttributeError:
+            try:
+                # FFMpeg (command line)
+                self.sampleIter = self.file.read_data(blockSize)
+            except AttributeError:
+                # gstreamer (pygst)
+                self.sampleIter = iter(self.file)
 
     @property
     def spectrum(self):
