@@ -77,6 +77,7 @@ class LightController(object):
         self.loadSettings(config)
 
         self.frequencyThresholds = self.defaultThresholds
+        self.frequencyOffThresholds = self.defaultOffThresholds
         self.frequencyBandOrder = self.defaultOrder
 
         GPIO.setmode(GPIO.BCM)
@@ -91,10 +92,12 @@ class LightController(object):
         self.delayBetweenUpdates = float(gcp.get('main', 'delayBetweenUpdates', 0.05))
 
         self.defaultThresholds = map(float, gcp.get('spectrum', 'thresholds').split(','))
+        self.defaultOffThresholds = map(float, gcp.get('spectrum', 'offThresholds').split(','))
         self.defaultOrder = map(int, gcp.get('spectrum', 'channelOrder').split(','))
 
     def _onSongChanged(self, filename):
         self.frequencyThresholds = self.defaultThresholds
+        self.frequencyOffThresholds = self.defaultOffThresholds
         self.frequencyBandOrder = self.defaultOrder
 
         iniPath = filename + '.ini'
@@ -103,6 +106,7 @@ class LightController(object):
             cp.read([iniPath])
 
             self.frequencyThresholds = map(float, cp.get('spectrum', 'thresholds').split(','))
+            self.frequencyOffThresholds = map(float, cp.get('spectrum', 'offThresholds').split(','))
             self.frequencyBandOrder = map(int, cp.get('spectrum', 'channelOrder').split(','))
 
     def _onChunk(self):
@@ -113,6 +117,11 @@ class LightController(object):
             spectrum = self.analyzer().spectrum
             bands = [spectrum[i] for i in self.frequencyBandOrder]
             lightStates = [level > self.frequencyThresholds[channel] for channel, level in enumerate(bands)]
+
+            for channel, value in enumerate(lightStates):
+                if not value:
+                    if self.previousLightStates[channel]:
+                        lightStates[channel] = bands[channel] > self.frequencyOffThresholds[channel]
 
             for channel, value in enumerate(lightStates):
                 if self.previousLightStates[channel] != value:
