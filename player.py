@@ -1,17 +1,11 @@
 #!/bin/env python
 from __future__ import print_function
+import atexit
 import ConfigParser
 import collections
-import datetime
 from itertools import cycle
 from multiprocessing import Process, Queue
-import os
 import sys
-
-from numpy import array_split, short, fromstring
-from numpy.random import rand as rand_array
-
-import anfft
 
 import audioread
 
@@ -21,48 +15,16 @@ import pygame.locals
 import ansi
 
 
-pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
-
 DONE_PLAYING_CHUNK = pygame.locals.USEREVENT
 
 STOP = 0
 CONTINUE = 1
 
 
-def launchProc(messageQueue):
-    import RPi.GPIO as GPIO
-
-    GPIO.setmode(GPIO.BCM)
-    for pin in pins:
-        GPIO.setup(pin, GPIO.OUT)
-
-    while True:
-        msg = messageQueue.get(True)
-
-        if msg == 'end':
-            break
-
-        for channel, value in enumerate(msg):
-            GPIO.output(pins[channel], value)
-
-messageQueue = Queue()
-p = Process(target=launchProc, args=(messageQueue, ))
-p.start()
-
 gcp = ConfigParser.SafeConfigParser()
 gcp.read('config.ini')
 
-
-# The number of spectrum analyzer bands (also light output channels) to use.
-frequencyBands = int(gcp.get('main', 'frequencyBands', 16))
-
-# Slow the light state changes down to every 0.05 seconds.
-delayBetweenUpdates = float(gcp.get('main', 'delayBetweenUpdates', 0.05))
-
 bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel', 2))
-
-defaultThresholds = map(float, gcp.get('spectrum', 'thresholds').split(','))
-defaultOrder = map(int, gcp.get('spectrum', 'channelOrder').split(','))
 
 
 files = sys.argv[1:]
@@ -71,9 +33,6 @@ files = sys.argv[1:]
 # Initialize pygame.mixer
 pygame.mixer.pre_init(frequency=44100)
 pygame.init()
-
-# Warm up ANFFT, allowing it to determine which FFT algorithm will work fastest on this machine.
-anfft.fft(rand_array(1024), measure=True)
 
 
 queuedCallbacks = collections.deque()
@@ -92,7 +51,6 @@ class SampleGen(object):
         self.filenameIter = iter(filenames)
         self.currentData = None
         self.sampleIter = None
-        self._dataSinceLastSpectrum = []
 
     def _loadNextFile(self):
         self.currentFilename = next(self.filenameIter)
@@ -112,21 +70,6 @@ class SampleGen(object):
             except AttributeError:
                 # gstreamer (pygst)
                 self.sampleIter = iter(self.file)
-
-    @property
-    def spectrum(self):
-        if self._currentSpectrum is None:
-            dataArr = fromstring(self.currentData, dtype=short)
-            normalized = dataArr / float(2 ** (bytes_per_frame_per_channel * 8))
-
-            # Cut the spectrum down to the appropriate number of bands.
-            bands = array_split(abs(anfft.rfft(normalized)), frequencyBands)
-
-            self._currentSpectrum = map((lambda arr: sum(arr) / len(arr)), bands)
-
-            self._dataSinceLastSpectrum = []
-
-        return self._currentSpectrum
 
     @property
     def elapsedTime(self):
@@ -156,8 +99,6 @@ class SampleGen(object):
             self.currentData = buffer(next(self.sampleIter))
 
         self.totalFramesRead += self.framesPerChunk
-        self._currentSpectrum = None
-        self._dataSinceLastSpectrum.append(self.currentData)
 
         queuedCallbacks.extend(self.onSample)
 
@@ -172,34 +113,31 @@ class SpectrumLightController(object):
     def __init__(self, sampleGen):
         self.sampleGen = sampleGen
 
-        self.lastLightUpdate = datetime.datetime.now()
-        self.frequencyThresholds = defaultThresholds
-        self.frequencyBandOrder = defaultOrder
-
         sampleGen.onSample.add(self._onSample)
         sampleGen.onSongChanged.add(self._onSongChanged)
 
-    def _onSongChanged(self):
-        self.frequencyThresholds = defaultThresholds
-        self.frequencyBandOrder = defaultOrder
+        atexit.register(self._onExit)
 
-        iniPath = self.currentFilename + '.ini'
-        if os.path.exists(iniPath):
-            cp = ConfigParser.SafeConfigParser()
-            cp.read([iniPath])
-            self.frequencyThresholds = map(float, cp.get('spectrum', 'thresholds').split(','))
-            self.frequencyBandOrder = map(int, cp.get('spectrum', 'channelOrder').split(','))
+        self.messageQueue = Queue()
+
+        self.process = Process(target=self.lightControllerProcess, args=(self.messageQueue, ))
+        self.process.start()
+
+    def _onSongChanged(self):
+        self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
 
     def _onSample(self):
-        now = datetime.datetime.now()
-        if (now - self.lastLightUpdate).total_seconds() > delayBetweenUpdates:
-            self.lastLightUpdate = now
+        self.messageQueue.put_nowait(('chunk', self.sampleGen.currentData))
 
-            spectrum = self.sampleGen.spectrum
-            bands = [spectrum[i] for i in self.frequencyBandOrder]
-            lightStates = [level > self.frequencyThresholds[channel] for channel, level in enumerate(bands)]
+    def _onExit(self):
+        self.messageQueue.put(('end', ))
 
-            messageQueue.put(lightStates)
+    @staticmethod
+    def lightControllerProcess(messageQueue):
+        import lights
+
+        analyzer = lights.SpectrumAnalyzer(messageQueue)
+        analyzer.loop()
 
 
 class SampleOutput(object):
@@ -291,7 +229,6 @@ except KeyboardInterrupt:
 
 ansi.info("Shutting down...")
 
-messageQueue.put('end')
 pygame.quit()
 
 ansi.done()
