@@ -100,11 +100,13 @@ class QueueHandlerProcess(BaseProcess):
             self.onMessage(messageType, message)
         except QueueEmpty:
             pass
+        #except Exception as exc:
+        #    print('Exception while reading from queue:', exc)
 
 
 class PyGameProcess(QueueHandlerProcess):
-    def __init__(self, nice=None):
-        super(PyGameProcess, self).__init__(nice)
+    def __init__(self, messageQueue, nice=None):
+        super(PyGameProcess, self).__init__(messageQueue, nice)
 
         self.eventHandlers = {
                 pygame.locals.QUIT: self.quit,
@@ -124,7 +126,9 @@ class PyGameProcess(QueueHandlerProcess):
 
     def eachLoop(self):
         super(PyGameProcess, self).eachLoop()
-        self.processEvent(pygame.event.wait())
+
+        #self.processEvent(pygame.event.wait())
+        self.afterEachCallback()
 
     def afterEachCallback(self):
         # Process waiting events before moving on to the next callback.
