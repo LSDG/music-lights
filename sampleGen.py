@@ -1,4 +1,7 @@
+import json
+
 import audioread
+import hsaudiotag.auto
 
 import mainLoop
 
@@ -25,7 +28,20 @@ class SampleGen(object):
         self.currentFilename = next(self.filenameIter)
         print('Loading file {!r}.'.format(self.currentFilename))
 
-        mainLoop.currentProcess.queuedCallbacks.extend(self.onSongChanged)
+        tags = hsaudiotag.auto.File(self.currentFilename)
+        if not tags.valid:
+            print("Couldn't read tags!")
+        else:
+            print(json.dumps({
+                    'artist': tags.artist,
+                    'album': tags.album,
+                    'title': tags.title,
+                    'duration': tags.duration,
+                    }))
+
+        self.tags = tags
+
+        mainLoop.currentProcess.queuedCallbacks.append(lambda: (handler(tags) for handler in self.onSongChanged))
 
         self.file = audioread.audio_open(self.currentFilename)
 
@@ -62,17 +78,18 @@ class SampleGen(object):
             self._loadNextFile()
 
         try:
-            self.currentData = next(self.sampleIter)
+            data = next(self.sampleIter)
         except (StopIteration, AttributeError):
             # Either we haven't loaded a song yet, or the one we were playing ended. Load another.
             self._loadNextFile()
-            self.currentData = next(self.sampleIter)
+            data = next(self.sampleIter)
 
         self.totalFramesRead += self.framesPerChunk
 
-        mainLoop.currentProcess.queuedCallbacks.extend(self.onSample)
+        mainLoop.currentProcess.queuedCallbacks.append(lambda: (handler(data) for handler in self.onSample))
 
-        return self.currentData
+        self.currentData = data
+        return data
 
     def nextChunkSound(self):
         import pygame
