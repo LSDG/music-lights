@@ -13,7 +13,7 @@ import pygame.locals
 
 import ansi
 
-from mainLoop import PyGameProcess
+import mainLoop
 from sampleGen import SampleGen
 
 
@@ -53,8 +53,8 @@ class SpectrumLightController(object):
 
         import lights
 
-        self.process = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
-        self.process.start()
+        self.subProcess = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
+        self.subProcess.start()
 
     def _onSongChanged(self):
         try:
@@ -69,7 +69,7 @@ class SpectrumLightController(object):
             ansi.error("Message queue to light process full! Continuing...")
 
     def _onExit(self):
-        if self.process.is_alive():
+        if self.subProcess.is_alive():
             try:
                 self.messageQueue.put(('end', ))
             except QueueFull:
@@ -86,21 +86,21 @@ class SampleOutput(object):
         self.queueNextSound()  # Start playing the first chunk.
         self.queueNextSound()  # Queue the next chunk.
 
-        process.eventHandlers[DONE_PLAYING_CHUNK] = self.queueNextSound
+        mainLoop.currentProcess.eventHandlers[DONE_PLAYING_CHUNK] = self.queueNextSound
 
     def queueNextSound(self, event=None):
-        chunk = sampleGen.nextChunkSound()
+        chunk = self.sampleGen.nextChunkSound()
         chunk.play()
 
         ansi.stdout(
                 "{cursor.col.0}{clear.line.all}Current time:"
                     " {style.bold}{file.elapsedTime: >7.2f}{style.none} / {file.duration: <7.2f}",
-                file=sampleGen,
+                file=self.sampleGen,
                 suppressNewline=True
                 )
 
 
-def displayFileStarted():
+def displayFileStarted(sampleGen):
     print()
     ansi.stdout(
             "Playing audio file: {style.fg.blue}{file.currentFilename}{style.none}\n"
@@ -111,13 +111,17 @@ def displayFileStarted():
             )
 
 
-process = PyGameProcess()
+def runPlayerProcess(messageQueue, nice=None):
+    process = mainLoop.PyGameProcess(messageQueue)
 
-sampleGen = SampleGen(cycle(files), gcp)
-sampleGen.onSongChanged.add(displayFileStarted)
+    sampleGen = SampleGen(cycle(files), gcp)
+    sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
 
-output = SampleOutput(sampleGen)
+    SampleOutput(sampleGen)
+    SpectrumLightController(sampleGen)
 
-lights = SpectrumLightController(sampleGen)
+    process.loop()
 
-process.loop()
+
+if __name__ == '__main__':
+    runPlayerProcess()
