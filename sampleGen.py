@@ -41,7 +41,7 @@ class SampleGen(object):
 
         self.tags = tags
 
-        mainLoop.currentProcess.queuedCallbacks.append(lambda: (handler(tags) for handler in self.onSongChanged))
+        mainLoop.currentProcess.queuedCallbacks.append(lambda: [handler(tags) for handler in self.onSongChanged])
 
         self.file = audioread.audio_open(self.currentFilename)
 
@@ -86,7 +86,7 @@ class SampleGen(object):
 
         self.totalFramesRead += self.framesPerChunk
 
-        mainLoop.currentProcess.queuedCallbacks.append(lambda: (handler(data) for handler in self.onSample))
+        mainLoop.currentProcess.queuedCallbacks.append(lambda: [handler(data) for handler in self.onSample])
 
         self.currentData = data
         return data
