@@ -2,6 +2,7 @@ from __future__ import print_function
 import ConfigParser
 import collections
 import os
+from Queue import Empty as QueueEmpty
 
 import pygame
 import pygame.locals
@@ -29,7 +30,7 @@ class BaseProcess(object):
         if nice is not None:
             os.nice(nice)
 
-    def quit(self, event):
+    def quit(self, event=None):
         raise QuitApplication
 
     def eachLoop(self):
@@ -50,7 +51,6 @@ class BaseProcess(object):
 
                 # Process any queued callbacks.
                 while self.queuedCallbacks:
-                    print(self.queuedCallbacks)
                     callback = self.queuedCallbacks.popleft()
                     callback()
 
@@ -83,14 +83,16 @@ class QueueHandlerProcess(BaseProcess):
             raise QuitApplication()
 
     def eachLoop(self):
-        message = self.messageQueue.get(timeout=60)
+        try:
+            message = self.messageQueue.get_nowait()
 
-        if message:
             messageType = message[0]
             self.onMessage(messageType, message)
+        except QueueEmpty:
+            pass
 
 
-class PyGameProcess(BaseProcess):
+class PyGameProcess(QueueHandlerProcess):
     def __init__(self, nice=None):
         super(PyGameProcess, self).__init__(nice)
 
@@ -111,6 +113,7 @@ class PyGameProcess(BaseProcess):
         handler(event)
 
     def eachLoop(self):
+        super(PyGameProcess, self).eachLoop()
         self.processEvent(pygame.event.wait())
 
     def afterEachCallback(self):
