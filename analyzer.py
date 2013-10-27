@@ -7,7 +7,6 @@ import ansi
 
 from mainLoop import QueueHandlerProcess
 from sampleGen import SampleGen
-from songConfig import SongConfig
 from spectrum import SpectrumAnalyzer
 
 
@@ -16,8 +15,6 @@ class AnalyzerProcess(QueueHandlerProcess):
         super(AnalyzerProcess, self).__init__(Queue())
 
         self.playlist = playlist
-
-        self.songConfig = SongConfig(self.config)
 
         self.sampleGen = SampleGen(playlist, self.config)
         self.sampleGen.onSample.add(self._onSample)
@@ -37,8 +34,6 @@ class AnalyzerProcess(QueueHandlerProcess):
                     "   {style.bold.fg.black}duration:{style.none} {file.duration} s",
                 file=self.sampleGen
                 )
-
-        self.songConfig.loadSongSettings(self.sampleGen.currentFilename)
 
         try:
             self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
@@ -66,8 +61,7 @@ class AnalyzerProcess(QueueHandlerProcess):
 
         if messageType == 'chunk':
             spectrum = self.analyzer.spectrum
-            bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
-            self.csv.writerow(bands)
+            self.csv.writerow(spectrum)
 
     def onShutdown(self):
         super(AnalyzerProcess, self).onShutdown()
