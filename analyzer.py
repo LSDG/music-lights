@@ -7,6 +7,7 @@ import ansi
 
 from mainLoop import QueueHandlerProcess
 from sampleGen import SampleGen
+from songConfig import SongConfig
 from spectrum import SpectrumAnalyzer
 
 
@@ -15,6 +16,8 @@ class AnalyzerProcess(QueueHandlerProcess):
         super(AnalyzerProcess, self).__init__(Queue())
 
         self.playlist = playlist
+
+        self.songConfig = SongConfig(self.config)
 
         self.sampleGen = SampleGen(playlist, self.config)
         self.sampleGen.onSample.add(self._onSample)
@@ -25,7 +28,7 @@ class AnalyzerProcess(QueueHandlerProcess):
         self.csvFile = open(csvFilename, 'wb')
         self.csv = csv.writer(self.csvFile)
 
-    def _onSongChanged(self):
+    def _onSongChanged(self, tags):
         print()
         ansi.stdout(
                 "Playing audio file: {style.fg.blue}{file.currentFilename}{style.none}\n"
@@ -35,14 +38,16 @@ class AnalyzerProcess(QueueHandlerProcess):
                 file=self.sampleGen
                 )
 
+        self.songConfig.loadSongSettings(self.sampleGen.currentFilename)
+
         try:
             self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
 
-    def _onSample(self):
+    def _onSample(self, data):
         try:
-            self.messageQueue.put_nowait(('chunk', self.sampleGen.currentData))
+            self.messageQueue.put_nowait(('chunk', data))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
 
@@ -60,8 +65,8 @@ class AnalyzerProcess(QueueHandlerProcess):
         self.analyzer.onMessage(message)
 
         if messageType == 'chunk':
-            spectrum = self.analyzer().spectrum
-            bands = [spectrum[i] for i in self.frequencyBandOrder]
+            spectrum = self.analyzer.spectrum
+            bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
             self.csv.writerow(bands)
 
     def onShutdown(self):
