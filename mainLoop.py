@@ -1,5 +1,5 @@
 from __future__ import print_function
-import ConfigParser
+from ConfigParserDefault import ConfigParserDefault
 import collections
 import os
 from Queue import Empty as QueueEmpty
@@ -22,7 +22,7 @@ class BaseProcess(object):
         global currentProcess
         currentProcess = self
 
-        self.config = ConfigParser.SafeConfigParser()
+        self.config = ConfigParserDefault()
         self.config.read('config.ini')
 
         self.queuedCallbacks = collections.deque()

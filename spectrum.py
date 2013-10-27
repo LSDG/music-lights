@@ -19,9 +19,9 @@ class SpectrumAnalyzer(object):
 
     def loadSettings(self, gcp):
         # The number of spectrum analyzer bands (also light output channels) to use.
-        self.frequencyBands = int(gcp.get('main', 'frequencyBands', 16))
+        self.frequencyBands = int(gcp.get_def('main', 'frequencyBands', 16))
 
-        self.bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel', 2))
+        self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
 
     def _onChunk(self, data):
         self._currentSpectrum = None

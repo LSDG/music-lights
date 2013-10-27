@@ -22,7 +22,7 @@ class SampleGen(object):
         self.loadSettings(config)
 
     def loadSettings(self, gcp):
-        self.bytes_per_frame_per_channel = int(gcp.get('main', 'bytes_per_frame_per_channel', 2))
+        self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
 
     def _loadNextFile(self):
         self.currentFilename = next(self.filenameIter)

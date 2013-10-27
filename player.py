@@ -1,7 +1,7 @@
 #!/bin/env python
 from __future__ import print_function
 import atexit
-import ConfigParser
+from ConfigParserDefault import ConfigParserDefault
 from itertools import cycle
 from multiprocessing import Process, Queue
 import os
@@ -23,11 +23,11 @@ STOP = 0
 CONTINUE = 1
 
 
-gcp = ConfigParser.SafeConfigParser()
+gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
-lightProcessNice = int(gcp.get('main', 'lightProcessNice', 0))
-soundProcessNice = int(gcp.get('main', 'soundProcessNice', 0))
+lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
+soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
 
 files = sys.argv[1:]
 
