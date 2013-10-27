@@ -9,6 +9,7 @@ import virtualenv
 requiredPackages = """
 anfft
 audioread
+hsaudiotag
 numpy
 pygame
 RPi.GPIO
