@@ -14,7 +14,7 @@ from socketio.namespace import BaseNamespace
 from socketio.mixins import BroadcastMixin
 
 
-class webController(object):
+class WebController(object):
     def __init__(self, siteUrl, server):
         self.server = server
         self.playerQueue = Queue()
@@ -72,7 +72,7 @@ class Application(object):
 if __name__ == '__main__':
     server = SocketIOServer(('0.0.0.0', 8080), Application(), resource='socket.io')
 
-    controller = webController('localhost', server)
+    controller = WebController('localhost', server)
 
     server.serve_forever()
 
