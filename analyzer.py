@@ -1,5 +1,4 @@
 import csv
-from itertools import cycle
 from multiprocessing import Queue
 from Queue import Full as QueueFull
 import sys
@@ -17,12 +16,9 @@ class AnalyzerProcess(QueueHandlerProcess):
 
         self.playlist = playlist
 
-        self.sampleGen = SampleGen(cycle(playlist), self.config)
+        self.sampleGen = SampleGen(playlist, self.config)
         self.sampleGen.onSample.add(self._onSample)
         self.sampleGen.onSongChanged.add(self._onSongChanged)
-
-        self.sampleGen.nextChunk()
-        self.sampleGen.nextChunk()
 
         self.analyzer = SpectrumAnalyzer(self.messageQueue, self.config)
 
@@ -53,7 +49,10 @@ class AnalyzerProcess(QueueHandlerProcess):
     def eachLoop(self):
         super(AnalyzerProcess, self).eachLoop()
 
-        self.sampleGen.nextChunk()
+        try:
+            self.sampleGen.nextChunk()
+        except StopIteration:
+            self.quit()
 
     def onMessage(self, messageType, message):
         super(AnalyzerProcess, self).onMessage(messageType, message)
