@@ -56,15 +56,15 @@ class SpectrumLightController(object):
         self.subProcess = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
         self.subProcess.start()
 
-    def _onSongChanged(self):
+    def _onSongChanged(self, tags):
         try:
             self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
 
-    def _onSample(self):
+    def _onSample(self, data):
         try:
-            self.messageQueue.put_nowait(('chunk', self.sampleGen.currentData))
+            self.messageQueue.put_nowait(('chunk', data))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
 
