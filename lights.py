@@ -1,12 +1,11 @@
 from __future__ import print_function
-import ConfigParser
 import datetime
-import os
 from weakref import ref
 
 import RPi.GPIO as GPIO
 
 from mainLoop import QueueHandlerProcess
+from songConfig import SongConfig
 
 
 pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
@@ -17,11 +16,7 @@ class LightController(object):
         self.analyzer = ref(analyzer)
         self.lastLightUpdate = datetime.datetime.now()
 
-        self.loadSettings(config)
-
-        self.frequencyThresholds = self.defaultThresholds
-        self.frequencyOffThresholds = self.defaultOffThresholds
-        self.frequencyBandOrder = self.defaultOrder
+        self.songConfig = SongConfig(config)
 
         GPIO.setmode(GPIO.BCM)
         for pin in pins:
@@ -30,41 +25,19 @@ class LightController(object):
 
         self.previousLightStates = [False] * analyzer.frequencyBands
 
-    def loadSettings(self, config):
-        # Slow the light state changes down to every 0.05 seconds.
-        self.delayBetweenUpdates = float(config.get('main', 'delayBetweenUpdates', 0.05))
-
-        self.defaultThresholds = map(float, config.get('spectrum', 'thresholds').split(','))
-        self.defaultOffThresholds = map(float, config.get('spectrum', 'offThresholds').split(','))
-        self.defaultOrder = map(int, config.get('spectrum', 'channelOrder').split(','))
-
-    def _onSongChanged(self, filename):
-        self.frequencyThresholds = self.defaultThresholds
-        self.frequencyOffThresholds = self.defaultOffThresholds
-        self.frequencyBandOrder = self.defaultOrder
-
-        iniPath = filename + '.ini'
-        if os.path.exists(iniPath):
-            cp = ConfigParser.SafeConfigParser()
-            cp.read([iniPath])
-
-            self.frequencyThresholds = map(float, cp.get('spectrum', 'thresholds').split(','))
-            self.frequencyOffThresholds = map(float, cp.get('spectrum', 'offThresholds').split(','))
-            self.frequencyBandOrder = map(int, cp.get('spectrum', 'channelOrder').split(','))
-
     def _onChunk(self):
         now = datetime.datetime.now()
         if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
             self.lastLightUpdate = now
 
             spectrum = self.analyzer().spectrum
-            bands = [spectrum[i] for i in self.frequencyBandOrder]
-            lightStates = [level > self.frequencyThresholds[channel] for channel, level in enumerate(bands)]
+            bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
+            lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
 
             for channel, value in enumerate(lightStates):
                 if not value:
                     if self.previousLightStates[channel]:
-                        lightStates[channel] = bands[channel] > self.frequencyOffThresholds[channel]
+                        lightStates[channel] = bands[channel] > self.songConfig.frequencyOffThresholds[channel]
 
             for channel, value in enumerate(lightStates):
                 if self.previousLightStates[channel] != value:
@@ -76,7 +49,7 @@ class LightController(object):
         messageType = message[0]
 
         if messageType == 'songChange':
-            self._onSongChanged(*message[1:])
+            self.songConfig.loadSongSettings(*message[1:])
 
         elif messageType == 'chunk':
             self._onChunk()
