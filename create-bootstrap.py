@@ -11,7 +11,7 @@ audioread
 hsaudiotag
 numpy
 pygame
-RPi.GPIO
+pyserial
 """.split()
 
 
