@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 import stat
-import textwrap
 
 import virtualenv
 
@@ -16,21 +15,21 @@ RPi.GPIO
 """.split()
 
 
-output = virtualenv.create_bootstrap_script(textwrap.dedent("""
+installDepsScript = """
 import subprocess
 
 def after_install(options, virt_env_dir):
     requiredPackages = {!r}
-    subprocess.call([join(virt_env_dir, 'bin', 'pip'), 'install'] + requiredPackages)
+    subprocess.call([join(virt_env_dir, 'bin', 'easy_install')] + requiredPackages)
 
 def adjust_options(options, args):
     if len(args) == 0:
         args.append('virtenv')
-""").format(requiredPackages))
+""".format(requiredPackages)
 
 with open('bootstrap.py', 'w') as bootstrap:
     # Write out the bootstrap script.
-    bootstrap.write(output)
+    bootstrap.write(virtualenv.create_bootstrap_script(installDepsScript))
 
     # Make the file executable.
     fileno = bootstrap.fileno()
