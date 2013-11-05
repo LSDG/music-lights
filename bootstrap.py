@@ -1813,7 +1813,7 @@ def create_bootstrap_script(extra_text, python_version=''):
 import subprocess
 
 def after_install(options, virt_env_dir):
-    requiredPackages = ['anfft', 'audioread', 'hsaudiotag', 'numpy', 'pygame', 'RPi.GPIO']
+    requiredPackages = ['pyFFTW', 'audioread', 'hsaudiotag', 'numpy', 'pygame', 'RPi.GPIO']
     subprocess.call([join(virt_env_dir, 'bin', 'easy_install')] + requiredPackages)
 
 def adjust_options(options, args):
