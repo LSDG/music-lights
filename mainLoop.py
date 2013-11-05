@@ -42,6 +42,16 @@ class BaseProcess(object):
     def onShutdown(self):
         pass
 
+    def queueCall(self, funcOrSet, *args, **kwargs):
+        if not funcOrSet:
+            return
+
+        func = funcOrSet
+        if isinstance(funcOrSet, set):
+            func = lambda: [f(*args, **kwargs) for f in funcOrSet]
+
+        self.queuedCallbacks.append(func)
+
     def loop(self):
         ansi.info("Starting process run loop...")
 
