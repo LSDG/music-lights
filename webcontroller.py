@@ -2,6 +2,7 @@ from multiprocessing import Process, Queue
 import os
 from Queue import Full as QueueFull
 import sys
+import hsaudiotag.auto
 import json
 
 import player
@@ -13,13 +14,15 @@ from socketio.server import SocketIOServer
 from socketio.namespace import BaseNamespace
 from socketio.mixins import BroadcastMixin
 
+files = sys.argv[1:]
 
 class WebController(object):
-    def __init__(self, siteUrl, server):
+    def __init__(self, server):
         self.server = server
         self.playerQueue = Queue()
         self.controllerQueue = Queue()
-        self.playerProcess = Process(target=player.Run, args=(self.playerQueue, self.controllerQueue))
+        self.playlist = self.generatePlaylist()
+        self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue))
 
         self.playerQueueLet = Greenlet.spawn(self.processPlayerQueue)
 
@@ -30,13 +33,15 @@ class WebController(object):
             self.broadcast_event(msg)
             print msg
 
-    def relayMessage(self, msg):
+    def handleMessage(self, msg):
         self.playerQueue.put(msg)
 
         if msg['command'] == 'stop':
             print 'Got stop command!'
-        elif msg['command'] == 'playnext':
+        elif msg['command'] == 'play next':
             print 'Playing next:', msg['filename']
+        elif msg['command'] == 'list songs':
+            self.broadcast_event()
 
     def broadcast_event(self, event, *args):
         """
@@ -51,11 +56,31 @@ class WebController(object):
         for sessid, socket in self.server.sockets.iteritems():
             socket.send_packet(pkt)
 
+    def generatePlaylist(self):
+        playlist = list()
+        for file in files:
+            tags = hsaudiotag.auto.File(file)
+            if not tags.valid:
+                entry = json.dumps({
+                    'title': file,
+                    'filename': file
+                })
+            else:
+                entry = json.dumps({
+                    'artist': tags.artist,
+                    'album': tags.album,
+                    'title': tags.title,
+                    'duration': tags.duration,
+                    'filename': file
+                })
+            playlist.append(entry)
+        return playlist
 
 
-class ControllerNamespace(BaseNamespace, BroadcastMixin):
+
+class ControllerNamespace(BaseNamespace):
     def recv_message(self, data):
-        controller.relayMessage(data)
+        controller.handleMessage(data)
 
 
 class Application(object):
@@ -72,7 +97,7 @@ class Application(object):
 if __name__ == '__main__':
     server = SocketIOServer(('0.0.0.0', 8080), Application(), resource='socket.io')
 
-    controller = WebController('localhost', server)
+    controller = WebController(server)
 
     server.serve_forever()
 
