@@ -26,6 +26,7 @@ CONTINUE = 1
 gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
+useGPIO = gcp.get_def('main', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
 soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
 
@@ -51,7 +52,10 @@ class SpectrumLightController(object):
 
         self.messageQueue = Queue()
 
-        import lights
+        if useGPIO:
+            import lights_gpio as lights
+        else:
+            import lights
 
         self.subProcess = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
         self.subProcess.start()
