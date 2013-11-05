@@ -5,65 +5,36 @@ import sys
 import hsaudiotag.auto
 import json
 
+from socketIO_client import SocketIO, BaseNamespace
+
 import player
-
-from gevent import monkey, Greenlet; monkey.patch_all()
-
-from socketio import socketio_manage
-from socketio.server import SocketIOServer
-from socketio.namespace import BaseNamespace
-from socketio.mixins import BroadcastMixin
 
 files = sys.argv[1:]
 
-class WebController(object):
-    def __init__(self, server):
-        self.server = server
+class WebController(BaseNamespace):
+    def initialize(self):
         self.playerQueue = Queue()
         self.controllerQueue = Queue()
-        self.playlist = self.generatePlaylist()
+
         self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue))
 
-        self.playerQueueLet = Greenlet.spawn(self.processPlayerQueue)
+    def on_list_songs(self):
+        print 'Got list songs request'
+        playlist = self.generatePlaylist()
+        self.emit('list songs', playlist)
 
-    def processPlayerQueue(self):
-        while True:
-            msg = self.playerQueue.get()
-
-            self.broadcast_event(msg)
-            print msg
-
-    def handleMessage(self, msg):
-        self.playerQueue.put(msg)
-
-        if msg['command'] == 'stop':
-            print 'Got stop command!'
-        elif msg['command'] == 'play next':
-            print 'Playing next:', msg['filename']
-        elif msg['command'] == 'list songs':
-            self.broadcast_event()
-
-    def broadcast_event(self, event, *args):
-        """
-        This is sent to all in the sockets in this particular Namespace,
-        including itself.
-        """
-        pkt = dict(type="event",
-                   name=event,
-                   args=args,
-                   endpoint='')
-
-        for sessid, socket in self.server.sockets.iteritems():
-            socket.send_packet(pkt)
+    def on_play_next(self, song):
+        print 'Play next:', song
+        self.controller.controllerQueue.put(song)
 
     def generatePlaylist(self):
         playlist = list()
-        for file in files:
-            tags = hsaudiotag.auto.File(file)
+        for song in files:
+            tags = hsaudiotag.auto.File(song)
             if not tags.valid:
                 entry = json.dumps({
-                    'title': file,
-                    'filename': file
+                    'title': song,
+                    'filename': song
                 })
             else:
                 entry = json.dumps({
@@ -71,17 +42,10 @@ class WebController(object):
                     'album': tags.album,
                     'title': tags.title,
                     'duration': tags.duration,
-                    'filename': file
+                    'filename': song
                 })
             playlist.append(entry)
         return playlist
-
-
-
-class ControllerNamespace(BaseNamespace):
-    def recv_message(self, data):
-        controller.handleMessage(data)
-
 
 class Application(object):
     def __init__(self):
