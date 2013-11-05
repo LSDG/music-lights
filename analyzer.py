@@ -5,12 +5,12 @@ import sys
 
 import ansi
 
-from mainLoop import QueueHandlerProcess
+import mainLoop
 from sampleGen import SampleGen
 from spectrum import SpectrumAnalyzer
 
 
-class AnalyzerProcess(QueueHandlerProcess):
+class AnalyzerProcess(mainLoop.QueueHandlerProcess):
     def __init__(self, csvFilename, *playlist):
         super(AnalyzerProcess, self).__init__(Queue())
 
@@ -25,10 +25,10 @@ class AnalyzerProcess(QueueHandlerProcess):
         self.csvFile = open(csvFilename, 'wb')
         self.csv = csv.writer(self.csvFile)
 
-    def _onSongChanged(self, tags):
+    def _onSongChanged(self, tags, songInfo):
         print()
         ansi.stdout(
-                "Playing audio file: {style.fg.blue}{file.currentFilename}{style.none}\n"
+                "Analyzing audio file: {style.fg.blue}{file.currentFilename}{style.none}\n"
                     "{style.bold.fg.black}channels:{style.none} {file.channels}"
                     "   {style.bold.fg.black}sample rate:{style.none} {file.samplerate} Hz"
                     "   {style.bold.fg.black}duration:{style.none} {file.duration} s",
@@ -36,9 +36,13 @@ class AnalyzerProcess(QueueHandlerProcess):
                 )
 
         try:
-            self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
+            self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename, songInfo))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
+
+        mainLoop.currentProcess.queueCall(lambda:
+                self.csv.writerow(['{} Hz'.format(f) for f in self.analyzer.fftFrequencies])
+                )
 
     def _onSample(self, data):
         try:

@@ -56,7 +56,7 @@ class SpectrumLightController(object):
         self.subProcess = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
         self.subProcess.start()
 
-    def _onSongChanged(self, tags):
+    def _onSongChanged(self, tags, songInfo):
         try:
             self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
         except QueueFull:
@@ -115,7 +115,7 @@ def runPlayerProcess(messageQueue, nice=None):
     process = mainLoop.PyGameProcess(messageQueue)
 
     sampleGen = SampleGen(cycle(files), gcp)
-    sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
+    sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen)
     SpectrumLightController(sampleGen)
