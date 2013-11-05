@@ -13,13 +13,14 @@ from socketio.server import SocketIOServer
 from socketio.namespace import BaseNamespace
 from socketio.mixins import BroadcastMixin
 
+files = sys.argv[1:]
 
 class WebController(object):
     def __init__(self, siteUrl, server):
         self.server = server
         self.playerQueue = Queue()
         self.controllerQueue = Queue()
-        self.playerProcess = Process(target=player.Run, args=(self.playerQueue, self.controllerQueue))
+        self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue))
 
         self.playerQueueLet = Greenlet.spawn(self.processPlayerQueue)
 

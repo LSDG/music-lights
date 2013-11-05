@@ -111,7 +111,7 @@ def displayFileStarted(sampleGen):
             )
 
 
-def runPlayerProcess(messageQueue, nice=None):
+def runPlayerProcess(playerQueue, controllerQueue, nice=None):
     process = mainLoop.PyGameProcess(messageQueue)
 
     sampleGen = SampleGen(cycle(files), gcp)
