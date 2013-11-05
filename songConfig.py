@@ -15,7 +15,7 @@ class SongConfig(object):
         self.frequencyOffThresholds = self.defaultOffThresholds
         self.frequencyBandOrder = self.defaultOrder
 
-    def loadSongSettings(self, filename):
+    def loadSongSettings(self, filename, *args):
         self.frequencyThresholds = self.defaultThresholds
         self.frequencyOffThresholds = self.defaultOffThresholds
         self.frequencyBandOrder = self.defaultOrder
