@@ -2,8 +2,15 @@ from socketIO_client import SocketIO, BaseNamespace, transports
 import logging
 import inspect
 
-transports.TIMEOUT_IN_SECONDS = 60
+#transports.TIMEOUT_IN_SECONDS = 60
 logging.basicConfig(level=logging.DEBUG)
+
+def onLoop(self):
+    print 'Looping!'
+    return self._recv_packet()
+
+transports._AbstractTransport._recv_packet = transports._AbstractTransport.recv_packet
+transports._AbstractTransport.recv_packet = onLoop
 
 class Namespace(BaseNamespace):
 
@@ -30,6 +37,9 @@ class Namespace(BaseNamespace):
             }
         ]
         callback(playList)
+
+    def on_play_next(self, song, callback):
+        callback()
 
 socketIO = SocketIO('localhost', 8080, Namespace)
 piSpace = socketIO.define(Namespace, '/rpi')
