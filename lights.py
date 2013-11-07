@@ -16,7 +16,12 @@ class LightController(object):
         self.songConfig = SongConfig(config)
 
         #TODO: Read serial port from config
-        self.serial = serial.Serial('/dev/ttyUSB0', 19200, timeout=1)
+        self.serial = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
+
+        self.ready = False
+        while not self.ready:
+            if self.serial.readline().startswith('LSDG Holiday Light controller ver '):
+                self.ready = True
 
         self.previousLightStates = [False] * analyzer.frequencyBands
 
