@@ -5,11 +5,12 @@ import sys
 import hsaudiotag.auto
 import json
 
-from socketIO_client import SocketIO, BaseNamespace
+from socketIO_client import SocketIO, BaseNamespace, transports
 
 import player
 
 files = sys.argv[1:]
+
 
 class WebController(BaseNamespace):
     def initialize(self):
@@ -23,9 +24,10 @@ class WebController(BaseNamespace):
         playlist = self.generatePlaylist()
         self.emit('list songs', playlist)
 
-    def on_play_next(self, song):
-        print 'Play next:', song
-        self.controller.controllerQueue.put(song)
+    def on_play_next(self, data, callback):
+        print 'Play next:', data
+        self.controllerQueue.put(data['song'])
+        callback()
 
     def generatePlaylist(self):
         playlist = list()
@@ -47,22 +49,23 @@ class WebController(BaseNamespace):
             playlist.append(entry)
         return playlist
 
-class Application(object):
-    def __init__(self):
-        pass
-
-    def __call__(self, environ, start_response):
-        path = environ['PATH_INFO'].strip('/')
-
-        if path.startswith('socket.io'):
-            socketio_manage(environ, {'': ControllerNamespace}, self.request)
+    def readQueue(self):
+        msg = self.playerQueue.get_nowait()
+        print 'Msg from player:', msg
+        self.emit('song finished', {'song': msg['song']})
 
 
 if __name__ == '__main__':
-    server = SocketIOServer(('0.0.0.0', 8080), Application(), resource='socket.io')
+    socketIO = SocketIO('localhost', 8080)
 
-    controller = WebController(server)
+    controller = socketIO.define(WebController, '/rpi')
 
-    server.serve_forever()
+    def onLoop(self):
+        print 'Looping!'
+        controller.readQueue()
+        return self._recv_packet()
 
+    transports._AbstractTransport._recv_packet = transports._AbstractTransport.recv_packet
+    transports._AbstractTransport.recv_packet = onLoop
 
+    socketIO.wait()
