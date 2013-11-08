@@ -115,16 +115,39 @@ class WebListener(mainLoop.PyGameProcess):
     def __init__(self, controllerQueue):
         super(WebListener, self).__init__(controllerQueue)
         self.nextCommand = None
+        self.commandCallback = None
 
     def onMessage(self, messageType, message):
-        if messageType == "play next":
-            self.nextCommand = message
+        self.nextCommand = message
+
+    def eachLoop(self):
+        super(WebListener, self).eachLoop()
+
+        if self.commandCallback is not None:
+            self.commandCallback()
 
 
-def runPlayerProcess(playerQueue, controllerQueue, nice=None):
-    process = mainLoop.PyGameProcess(controllerQueue)
+def CommandIterator(nextCommand):
+        if nextCommand.pop()[0] == "play next":
+            yield nextCommand[1]
+        elif nextCommand == "stop":
+            raise StopIteration
+        else:
+            yield
 
-    sampleGen = SampleGen(cycle(files), gcp)
+
+
+def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None):
+    nextCommand = []
+
+    def setNextSong(song):
+        nextCommand.insert(0, song)
+
+    process = WebListener(controllerQueue)
+    process.commandCallback = setNextSong
+
+    #sampleGen = SampleGen(cycle(files), gcp)
+    sampleGen = SampleGen(CommandIterator(nextCommand), gcp)
     sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen)

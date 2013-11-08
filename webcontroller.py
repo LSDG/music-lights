@@ -17,7 +17,7 @@ class WebController(BaseNamespace):
         self.playerQueue = Queue()
         self.controllerQueue = Queue()
 
-        self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue))
+        self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue, files))
 
     def on_list_songs(self):
         print 'Got list songs request'
