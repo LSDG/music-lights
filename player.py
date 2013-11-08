@@ -112,7 +112,7 @@ def displayFileStarted(sampleGen):
 
 
 def runPlayerProcess(playerQueue, controllerQueue, nice=None):
-    process = mainLoop.PyGameProcess(messageQueue)
+    process = mainLoop.PyGameProcess(controllerQueue)
 
     sampleGen = SampleGen(cycle(files), gcp)
     sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
@@ -124,4 +124,4 @@ def runPlayerProcess(playerQueue, controllerQueue, nice=None):
 
 
 if __name__ == '__main__':
-    runPlayerProcess()
+    runPlayerProcess(Queue(), Queue())
