@@ -8,7 +8,7 @@ import os
 from Queue import Full as QueueFull
 import sys
 
-import pygame
+import pygame.mixer
 import pygame.locals
 
 import ansi
@@ -36,10 +36,6 @@ files = sys.argv[1:]
 if soundProcessNice:
     os.nice(soundProcessNice)
 
-# Initialize pygame.mixer
-pygame.mixer.pre_init(frequency=44100)
-pygame.init()
-
 
 class SpectrumLightController(object):
     def __init__(self, sampleGen):
@@ -50,24 +46,26 @@ class SpectrumLightController(object):
 
         atexit.register(self._onExit)
 
-        self.messageQueue = Queue()
-
         if useGPIO:
             import lights_gpio as lights
         else:
             import lights
+
+        self.messageQueue = Queue()
 
         self.subProcess = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
         self.subProcess.start()
 
     def _onSongChanged(self, tags, songInfo):
         try:
-            self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
+            self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename, songInfo))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
 
     def _onSample(self, data):
         try:
+            if isinstance(data, buffer):
+                data = bytes(data)
             self.messageQueue.put_nowait(('chunk', data))
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
@@ -93,15 +91,16 @@ class SampleOutput(object):
         mainLoop.currentProcess.eventHandlers[DONE_PLAYING_CHUNK] = self.queueNextSound
 
     def queueNextSound(self, event=None):
-        chunk = self.sampleGen.nextChunkSound()
-        chunk.play()
-
         ansi.stdout(
                 "{cursor.col.0}{clear.line.all}Current time:"
                     " {style.bold}{file.elapsedTime: >7.2f}{style.none} / {file.duration: <7.2f}",
                 file=self.sampleGen,
                 suppressNewline=True
                 )
+
+        chunk = pygame.mixer.Sound(buffer(self.sampleGen.nextChunk()))
+
+        chunk.play()
 
 
 def displayFileStarted(sampleGen):
