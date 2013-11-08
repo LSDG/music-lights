@@ -111,6 +111,16 @@ def displayFileStarted(sampleGen):
             )
 
 
+class WebListener(mainLoop.PyGameProcess):
+    def __init__(self, controllerQueue):
+        super(WebListener, self).__init__(controllerQueue)
+        self.nextCommand = None
+
+    def onMessage(self, messageType, message):
+        if messageType == "play next":
+            self.nextCommand = message
+
+
 def runPlayerProcess(playerQueue, controllerQueue, nice=None):
     process = mainLoop.PyGameProcess(controllerQueue)
 
