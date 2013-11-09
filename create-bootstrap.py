@@ -6,12 +6,12 @@ import virtualenv
 
 
 requiredPackages = """
-anfft
+pyFFTW
 audioread
 hsaudiotag
 numpy
 pygame
-RPi.GPIO
+pyserial
 """.split()
 
 

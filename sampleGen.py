@@ -41,9 +41,15 @@ class SampleGen(object):
 
         self.tags = tags
 
-        mainLoop.currentProcess.queuedCallbacks.append(lambda: [handler(tags) for handler in self.onSongChanged])
-
         self.file = audioread.audio_open(self.currentFilename)
+
+        songInfo = {
+                'channels': self.channels,
+                'samplerate': self.samplerate,
+                'duration': self.duration
+                }
+
+        mainLoop.currentProcess.queueCall(self.onSongChanged, tags, songInfo)
 
         blockSize = self.framesPerChunk * self.file.channels * self.bytes_per_frame_per_channel
         try:

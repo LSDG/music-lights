@@ -26,6 +26,7 @@ CONTINUE = 1
 gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
+useGPIO = gcp.get_def('main', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
 soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
 
@@ -51,12 +52,15 @@ class SpectrumLightController(object):
 
         self.messageQueue = Queue()
 
-        import lights
+        if useGPIO:
+            import lights_gpio as lights
+        else:
+            import lights
 
         self.subProcess = Process(target=lights.runLightsProcess, args=(self.messageQueue, ))
         self.subProcess.start()
 
-    def _onSongChanged(self, tags):
+    def _onSongChanged(self, tags, songInfo):
         try:
             self.messageQueue.put_nowait(('songChange', self.sampleGen.currentFilename))
         except QueueFull:
@@ -112,10 +116,10 @@ def displayFileStarted(sampleGen):
 
 
 def runPlayerProcess(playerQueue, controllerQueue, nice=None):
-    process = mainLoop.PyGameProcess(messageQueue)
+    process = mainLoop.PyGameProcess(controllerQueue)
 
     sampleGen = SampleGen(cycle(files), gcp)
-    sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
+    sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen)
     SpectrumLightController(sampleGen)
@@ -124,4 +128,4 @@ def runPlayerProcess(playerQueue, controllerQueue, nice=None):
 
 
 if __name__ == '__main__':
-    runPlayerProcess()
+    runPlayerProcess(Queue(), Queue())

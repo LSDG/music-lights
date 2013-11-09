@@ -42,6 +42,16 @@ class BaseProcess(object):
     def onShutdown(self):
         pass
 
+    def queueCall(self, funcOrSet, *args, **kwargs):
+        if not funcOrSet:
+            return
+
+        func = funcOrSet
+        if isinstance(funcOrSet, set):
+            func = lambda: [f(*args, **kwargs) for f in funcOrSet]
+
+        self.queuedCallbacks.append(func)
+
     def loop(self):
         ansi.info("Starting process run loop...")
 
@@ -90,11 +100,13 @@ class QueueHandlerProcess(BaseProcess):
             self.onMessage(messageType, message)
         except QueueEmpty:
             pass
+        #except Exception as exc:
+        #    print('Exception while reading from queue:', exc)
 
 
 class PyGameProcess(QueueHandlerProcess):
-    def __init__(self, nice=None):
-        super(PyGameProcess, self).__init__(nice)
+    def __init__(self, messageQueue, nice=None):
+        super(PyGameProcess, self).__init__(messageQueue, nice)
 
         self.eventHandlers = {
                 pygame.locals.QUIT: self.quit,
@@ -114,7 +126,9 @@ class PyGameProcess(QueueHandlerProcess):
 
     def eachLoop(self):
         super(PyGameProcess, self).eachLoop()
-        self.processEvent(pygame.event.wait())
+
+        #self.processEvent(pygame.event.wait())
+        self.afterEachCallback()
 
     def afterEachCallback(self):
         # Process waiting events before moving on to the next callback.

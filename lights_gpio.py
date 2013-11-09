@@ -2,10 +2,13 @@ from __future__ import print_function
 import datetime
 from weakref import ref
 
-import serial
+import RPi.GPIO as GPIO
 
 from mainLoop import QueueHandlerProcess
 from songConfig import SongConfig
+
+
+pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 
 
 class LightController(object):
@@ -15,13 +18,10 @@ class LightController(object):
 
         self.songConfig = SongConfig(config)
 
-        #TODO: Read serial port from config
-        self.serial = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
-
-        self.ready = False
-        while not self.ready:
-            if self.serial.readline().startswith('LSDG Holiday Light controller ver '):
-                self.ready = True
+        GPIO.setmode(GPIO.BCM)
+        for pin in pins:
+            GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin, False)
 
         self.previousLightStates = [False] * analyzer.frequencyBands
 
@@ -39,12 +39,9 @@ class LightController(object):
                     if self.previousLightStates[channel]:
                         lightStates[channel] = bands[channel] > self.songConfig.frequencyOffThresholds[channel]
 
-            changeCmd = []
             for channel, value in enumerate(lightStates):
                 if self.previousLightStates[channel] != value:
-                    changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
-
-            self.serial.write(''.join(changeCmd) + '\n')
+                    GPIO.output(pins[channel], value)
 
             self.previousLightStates = lightStates
 
