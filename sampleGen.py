@@ -14,6 +14,7 @@ class SampleGen(object):
         self.onStopped = set()
         self.onSample = set()
 
+        self.file = None
         self.totalFramesRead = 0.0
         self.filenameIter = iter(filenames)
         self.currentData = None
@@ -65,18 +66,30 @@ class SampleGen(object):
 
     @property
     def elapsedTime(self):
+        if not self.file:
+            return 0
+
         return self.totalFramesRead / self.file.samplerate
 
     @property
     def channels(self):
+        if not self.file:
+            return 0
+
         return self.file.channels
 
     @property
     def samplerate(self):
+        if not self.file:
+            return 0
+
         return self.file.samplerate
 
     @property
     def duration(self):
+        if not self.file:
+            return 0
+
         return self.file.duration
 
     def nextChunk(self):
@@ -96,10 +109,6 @@ class SampleGen(object):
 
         self.currentData = data
         return data
-
-    def nextChunkSound(self):
-        import pygame
-        return pygame.mixer.Sound(buffer(self.nextChunk()))
 
     def close(self):
         # Stop stream.
