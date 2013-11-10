@@ -10,7 +10,7 @@ pyFFTW
 audioread
 hsaudiotag
 numpy
-pygame
+pysfml
 pyserial
 """.split()
 
