@@ -8,24 +8,16 @@ import os
 from Queue import Full as QueueFull
 import sys
 
-import pygame.mixer
-import pygame.locals
-
 import ansi
 
 import mainLoop
 from sampleGen import SampleGen
 
 
-DONE_PLAYING_CHUNK = pygame.locals.USEREVENT
-
-STOP = 0
-CONTINUE = 1
-
-
 gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
+usePygame = gcp.get_def('main', 'usePygame', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 useGPIO = gcp.get_def('main', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
 soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
@@ -78,31 +70,6 @@ class SpectrumLightController(object):
                 ansi.error("Message queue to light process full! Continuing...")
 
 
-class SampleOutput(object):
-    def __init__(self, sampleGen):
-        self.sampleGen = sampleGen
-
-        self.channel = pygame.mixer.Channel(0)
-        self.channel.set_endevent(DONE_PLAYING_CHUNK)
-
-        self.queueNextSound()  # Start playing the first chunk.
-        self.queueNextSound()  # Queue the next chunk.
-
-        mainLoop.currentProcess.eventHandlers[DONE_PLAYING_CHUNK] = self.queueNextSound
-
-    def queueNextSound(self, event=None):
-        ansi.stdout(
-                "{cursor.col.0}{clear.line.all}Current time:"
-                    " {style.bold}{file.elapsedTime: >7.2f}{style.none} / {file.duration: <7.2f}",
-                file=self.sampleGen,
-                suppressNewline=True
-                )
-
-        chunk = pygame.mixer.Sound(buffer(self.sampleGen.nextChunk()))
-
-        chunk.play()
-
-
 def displayFileStarted(sampleGen):
     print()
     ansi.stdout(
@@ -120,7 +87,13 @@ def runPlayerProcess(playerQueue, controllerQueue, nice=None):
     sampleGen = SampleGen(cycle(files), gcp)
     sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))
 
-    SampleOutput(sampleGen)
+    if usePygame:
+        from pygame_output import SampleOutput
+    else:
+        from pysfml_output import SampleOutput
+
+    SampleOutput(sampleGen).play()
+
     SpectrumLightController(sampleGen)
 
     process.loop()

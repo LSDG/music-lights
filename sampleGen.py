@@ -25,7 +25,7 @@ class SampleGen(object):
     def loadSettings(self, gcp):
         self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
 
-    def _loadNextFile(self):
+    def loadNextFile(self):
         self.currentFilename = next(self.filenameIter)
         print('Loading file {!r}.'.format(self.currentFilename))
 
@@ -100,7 +100,7 @@ class SampleGen(object):
             data = next(self.sampleIter)
         except (StopIteration, AttributeError):
             # Either we haven't loaded a song yet, or the one we were playing ended. Load another.
-            self._loadNextFile()
+            self.loadNextFile()
             data = next(self.sampleIter)
 
         self.totalFramesRead += self.framesPerChunk
