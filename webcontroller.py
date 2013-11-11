@@ -1,6 +1,7 @@
 from multiprocessing import Process, Queue
 import os
 from Queue import Full as QueueFull
+from Queue import Empty
 import sys
 import hsaudiotag.auto
 import json
@@ -14,20 +15,30 @@ files = sys.argv[1:]
 
 class WebController(BaseNamespace):
     def initialize(self):
+        self.disconnected = False
         self.playerQueue = Queue()
         self.controllerQueue = Queue()
 
         self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue, files))
 
-    def on_list_songs(self):
+    def on_connect(self):
+        if self.disconnected:
+            self.disconnected = False
+            global controller
+            controller = socketIO.define(WebController, '/rpi')
+
+    def on_list_songs(self, callback):
         print 'Got list songs request'
         playlist = self.generatePlaylist()
-        self.emit('list songs', playlist)
+        callback(playlist)
 
     def on_play_next(self, data, callback):
         print 'Play next:', data
-        self.controllerQueue.put(data['song'])
+        self.controllerQueue.put({'play next': data['song']})
         callback()
+
+    def on_stop(self):
+        self.controllerQueue.put({'stop': ''})
 
     def generatePlaylist(self):
         playlist = list()
@@ -39,20 +50,27 @@ class WebController(BaseNamespace):
                     'filename': song
                 })
             else:
-                entry = json.dumps({
+                entry = {
                     'artist': tags.artist,
                     'album': tags.album,
                     'title': tags.title,
                     'duration': tags.duration,
                     'filename': song
-                })
+                }
             playlist.append(entry)
         return playlist
 
     def readQueue(self):
-        msg = self.playerQueue.get_nowait()
-        print 'Msg from player:', msg
-        self.emit('song finished', {'song': msg['song']})
+        try:
+            msg = self.playerQueue.get_nowait()
+            print 'Msg from player:', msg
+            self.emit('song finished', {'song': msg['song']})
+        except Empty:
+            pass
+
+    def on_disconnect(self):
+        self.disconnected = True
+        self.controllerQueue.put({'lost connection': ''})
 
 
 if __name__ == '__main__':
@@ -62,6 +80,7 @@ if __name__ == '__main__':
 
     def onLoop(self):
         print 'Looping!'
+        global controller
         controller.readQueue()
         return self._recv_packet()
 

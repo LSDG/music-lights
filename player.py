@@ -6,7 +6,9 @@ from itertools import cycle
 from multiprocessing import Process, Queue
 import os
 from Queue import Full as QueueFull
+from Queue import Empty
 import sys
+from random import choice
 
 import pygame
 import pygame.locals
@@ -115,39 +117,29 @@ class WebListener(mainLoop.PyGameProcess):
     def __init__(self, controllerQueue):
         super(WebListener, self).__init__(controllerQueue)
         self.nextCommand = None
-        self.commandCallback = None
 
     def onMessage(self, messageType, message):
-        self.nextCommand = message
-
-    def eachLoop(self):
-        super(WebListener, self).eachLoop()
-
-        if self.commandCallback is not None:
-            self.commandCallback()
+        nextCommand = (messageType, message)
 
 
-def CommandIterator(nextCommand):
-        if nextCommand.pop()[0] == "play next":
-            yield nextCommand[1]
-        elif nextCommand == "stop":
+def CommandIterator(controller, fileList):
+    if controller.nextCommand is not None:
+        if controller.nextCommand[0] == "play next":
+            yield controller.nextCommand[1]
+        elif controller.nextCommand[0] == "stop":
             raise StopIteration
-        else:
-            yield
-
+        elif controller.nextCommand[0] == "lost connection":
+            yield choice(fileList)
+        controller.nextCommand = None
+    else:
+        yield
 
 
 def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None):
-    nextCommand = []
-
-    def setNextSong(song):
-        nextCommand.insert(0, song)
-
     process = WebListener(controllerQueue)
-    process.commandCallback = setNextSong
 
     #sampleGen = SampleGen(cycle(files), gcp)
-    sampleGen = SampleGen(CommandIterator(nextCommand), gcp)
+    sampleGen = SampleGen(CommandIterator(process, fileList), gcp)
     sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen)
@@ -157,4 +149,4 @@ def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None):
 
 
 if __name__ == '__main__':
-    runPlayerProcess(Queue(), Queue())
+    runPlayerProcess(Queue(), Queue(), files)

@@ -26,6 +26,10 @@ class SampleGen(object):
 
     def _loadNextFile(self):
         self.currentFilename = next(self.filenameIter)
+
+        if self.currentFilename is None:
+            mainLoop.currentProcess.queuedCallbacks.append(self.nextChunk)
+
         print('Loading file {!r}.'.format(self.currentFilename))
 
         tags = hsaudiotag.auto.File(self.currentFilename)
