@@ -1,4 +1,5 @@
 from __future__ import print_function
+import math
 
 from numpy import short, fromstring
 from numpy.fft import fftfreq
@@ -22,7 +23,7 @@ class SpectrumAnalyzer(object):
 
         # Warm up pyFFTW, allowing it to determine which FFT algorithm will work fastest on this machine.
         buf = pyfftw.n_byte_align_empty(self.samplesPerSlice, pyfftw.simd_alignment, 'float64')
-        self.fft = pyfftw.builders.rfft(buf, threads=self.fftThreads, overwrite_input=True, avoid_copy=True)
+        self.fft = pyfftw.builders.rfft(buf, threads=self.fftThreads, overwrite_input=True)#, avoid_copy=True)
 
         self.dataBuffer = self.fft.get_input_array()
 
@@ -81,14 +82,27 @@ class SpectrumAnalyzer(object):
     @property
     def spectrum(self):
         if self._currentSpectrum is None:
-            dataArr = fromstring(''.join(self._dataSinceLastSpectrum), dtype=short)
-            self._dataSinceLastSpectrum = []
+            rawData = ''.join(self._dataSinceLastSpectrum)
+
+            numWindows = int(math.floor(len(rawData) / self.bytes_per_frame_per_channel / self.samplesPerWindow))
+            if numWindows == 0:
+                print("Need {} samples for a window! (only have {})".format(self.samplesPerWindow, len(rawData) / self.bytes_per_frame_per_channel))
+                print(self._dataSinceLastSpectrum)
+                return [0 for _ in range(self.frequencyBands)]
+
+            if len(rawData) % (self.samplesPerWindow * self.bytes_per_frame_per_channel) != 0:
+                self._dataSinceLastSpectrum = [rawData[numWindows * self.samplesPerWindow:]]
+                rawData = rawData[:numWindows * self.samplesPerWindow]
+            else:
+                self._dataSinceLastSpectrum = []
+
+            dataArr = fromstring(rawData, dtype=short)
 
             if not self.onSpectrum:
                 # No per-spectrum listeners, so ditch all but the most recent spectrum window.
                 dataArr = dataArr[-self.samplesPerWindow:]
 
-            for windowNum in range(len(dataArr) / self.samplesPerWindow):
+            for windowNum in range(numWindows):
                 fftOut = self.calcWindow(dataArr, windowNum)
 
                 mainLoop.currentProcess.queueCall(self.onSpectrum, fftOut)
