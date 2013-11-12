@@ -8,6 +8,11 @@ import os
 from Queue import Full as QueueFull
 import sys
 
+try:
+    import gobject
+except ImportError:
+    pass
+
 import ansi
 
 import mainLoop
@@ -82,15 +87,16 @@ def displayFileStarted(sampleGen):
 
 
 def runPlayerProcess(playerQueue, controllerQueue, nice=None):
-    process = mainLoop.PyGameProcess(controllerQueue)
+    if usePygame:
+        from pygame_output import SampleOutput
+        process = pygame_output.PyGameProcess(controllerQueue)
+
+    else:
+        from pysfml_output import SampleOutput
+        process = mainLoop.QueueHandlerProcess(controllerQueue)
 
     sampleGen = SampleGen(cycle(files), gcp)
     sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))
-
-    if usePygame:
-        from pygame_output import SampleOutput
-    else:
-        from pysfml_output import SampleOutput
 
     SampleOutput(sampleGen).play()
 

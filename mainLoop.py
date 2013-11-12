@@ -4,9 +4,6 @@ import collections
 import os
 from Queue import Empty as QueueEmpty
 
-import pygame
-import pygame.locals
-
 import ansi
 
 
@@ -102,39 +99,3 @@ class QueueHandlerProcess(BaseProcess):
             pass
         #except Exception as exc:
         #    print('Exception while reading from queue:', exc)
-
-
-class PyGameProcess(QueueHandlerProcess):
-    def __init__(self, messageQueue, nice=None):
-        super(PyGameProcess, self).__init__(messageQueue, nice)
-
-        self.eventHandlers = {
-                pygame.locals.QUIT: self.quit,
-                }
-
-        pygame.init()
-
-    def unhandledEvent(self, event):
-        ansi.warn("Unhandled event! {!r}", event)
-
-    def processEvent(self, event):
-        if event.type == pygame.locals.NOEVENT:
-            return
-
-        handler = self.eventHandlers.get(event.type, self.unhandledEvent)
-        handler(event)
-
-    def eachLoop(self):
-        super(PyGameProcess, self).eachLoop()
-
-        #self.processEvent(pygame.event.wait())
-        self.afterEachCallback()
-
-    def afterEachCallback(self):
-        # Process waiting events before moving on to the next callback.
-        for event in pygame.event.get():
-            self.processEvent(event)
-
-    def onShutdown(self):
-        super(PyGameProcess, self).onShutdown()
-        pygame.quit()
