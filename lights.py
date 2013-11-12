@@ -1,9 +1,11 @@
 from __future__ import print_function
 import datetime
+import time
 from weakref import ref
 
 import serial
 
+import ansi
 from mainLoop import QueueHandlerProcess
 from songConfig import SongConfig
 
@@ -17,13 +19,32 @@ class LightController(object):
 
         #TODO: Read serial port from config
         self.serial = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
+        #self.serial = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+
+        self.delayBetweenUpdates = 0.2
 
         self.ready = False
+        #self.ready = True
         while not self.ready:
-            if self.serial.readline().startswith('LSDG Holiday Light controller ver '):
+            if self.readFromSerial().startswith('LSDG Holiday Light controller ver '):
                 self.ready = True
 
         self.previousLightStates = [False] * analyzer.frequencyBands
+
+    def readFromSerial(self):
+        data = self.serial.readline()
+        ansi.stdout(
+                "{style.bold.fg.black} Arduino -> RPi:{style.none} {data}",
+                data=data.rstrip('\n')
+                )
+        return data
+
+    def writeToSerial(self, data):
+        ansi.stdout(
+                "{style.bold.fg.black}Arduino <- RPi :{style.none} {data}",
+                data=data.rstrip('\n')
+                )
+        self.serial.write(data)
 
     def _onChunk(self):
         now = datetime.datetime.now()
@@ -44,7 +65,7 @@ class LightController(object):
                 if self.previousLightStates[channel] != value:
                     changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
 
-            self.serial.write(''.join(changeCmd) + '\n')
+            self.writeToSerial(''.join(changeCmd) + '\n')
 
             self.previousLightStates = lightStates
 
@@ -64,7 +85,7 @@ def runLightsProcess(messageQueue, nice=None):
 
 class LightsProcess(QueueHandlerProcess):
     def __init__(self, messageQueue, nice=None):
-        super(LightsProcess, self).__init__(nice)
+        super(LightsProcess, self).__init__(messageQueue, nice)
 
         import spectrum
         self.analyzer = spectrum.SpectrumAnalyzer(self.messageQueue, self.config)
@@ -76,3 +97,34 @@ class LightsProcess(QueueHandlerProcess):
 
         self.analyzer.onMessage(message)
         self.lightController.onMessage(message)
+
+
+class LightsTestProcess(LightsProcess):
+    def __init__(self, messageQueue, nice=None):
+        super(LightsTestProcess, self).__init__(messageQueue, nice)
+
+        import itertools
+        self.testCommands = iter(itertools.cycle((
+            'p4s0p1s0p2s0p3s0',
+            'p4s1p1s1p2s1p3s1',
+            'p4s0p1s1p2s0p3s1',
+            'p4s1p1s0p2s1p3s0',
+            )))
+
+    def eachLoop(self):
+        super(LightsTestProcess, self).eachLoop()
+
+        time.sleep(0.2)
+        nextCommand = next(self.testCommands)
+        self.lightController.writeToSerial(nextCommand + '\n')
+
+
+if __name__ == '__main__':
+    print("Starting lights.py as main app...")
+
+    from multiprocessing import Queue
+
+    #runLightsProcess(Queue())
+
+    lp = LightsTestProcess(Queue())
+    lp.loop()
