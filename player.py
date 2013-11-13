@@ -23,6 +23,7 @@ gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
 usePygame = gcp.get_def('main', 'usePygame', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+useSFML = gcp.get_def('main', 'useSFML', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 useGPIO = gcp.get_def('main', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
 soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
@@ -88,12 +89,19 @@ def displayFileStarted(sampleGen):
 
 def runPlayerProcess(playerQueue, controllerQueue, nice=None):
     if usePygame:
-        from pygame_output import SampleOutput
+        import pygame_output
+        SampleOutput = pygame_output.SampleOutput
         process = pygame_output.PyGameProcess(controllerQueue)
 
-    else:
-        from pysfml_output import SampleOutput
+    elif useSFML:
+        import pysfml_output
+        SampleOutput = pysfml_output.SampleOutput
         process = mainLoop.QueueHandlerProcess(controllerQueue)
+
+    else:
+        import alsa_output
+        SampleOutput = alsa_output.SampleOutput
+        process = alsa_output.ALSAProcess(controllerQueue)
 
     sampleGen = SampleGen(cycle(files), gcp)
     sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))

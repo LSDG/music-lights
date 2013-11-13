@@ -6,11 +6,11 @@ import virtualenv
 
 
 requiredPackages = """
-pyFFTW
 audioread
 hsaudiotag
 numpy
-pysfml
+pyFFTW
+pyalsaaudio
 pyserial
 """.split()
 
