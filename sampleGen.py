@@ -8,7 +8,7 @@ import mainLoop
 
 class SampleGen(object):
     def __init__(self, filenames, config, **kwargs):
-        self.framesPerChunk = kwargs.get('framesPerChunk', 4096)
+        self.framesPerChunk = kwargs.get('framesPerChunk', 1024)
 
         self.onSongChanged = set()
         self.onStopped = set()
@@ -94,7 +94,7 @@ class SampleGen(object):
 
     def nextChunk(self):
         if self.sampleIter is None:
-            self._loadNextFile()
+            self.loadNextFile()
 
         try:
             data = next(self.sampleIter)
