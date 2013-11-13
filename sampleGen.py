@@ -105,7 +105,7 @@ class SampleGen(object):
 
         self.totalFramesRead += self.framesPerChunk
 
-        mainLoop.currentProcess.queuedCallbacks.append(lambda: [handler(data) for handler in self.onSample])
+        mainLoop.currentProcess.queueCall(self.onSample)
 
         self.currentData = data
         return data
