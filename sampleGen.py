@@ -25,7 +25,7 @@ class SampleGen(object):
         self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
 
     def _loadNextFile(self):
-        self.currentFilename = next(self.filenameIter)
+        self.currentFilename = next(self.filenameIter).encode('utf-8')
 
         if self.currentFilename is None:
             mainLoop.currentProcess.queuedCallbacks.append(self.nextChunk)

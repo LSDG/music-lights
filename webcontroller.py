@@ -20,6 +20,7 @@ class WebController(BaseNamespace):
         self.controllerQueue = Queue()
 
         self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue, files))
+        self.playerProcess.start()
 
     def on_connect(self):
         if self.disconnected:
@@ -45,10 +46,10 @@ class WebController(BaseNamespace):
         for song in files:
             tags = hsaudiotag.auto.File(song)
             if not tags.valid:
-                entry = json.dumps({
+                entry = {
                     'title': song,
                     'filename': song
-                })
+                }
             else:
                 entry = {
                     'artist': tags.artist,

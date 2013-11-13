@@ -8,6 +8,7 @@ import os
 from Queue import Full as QueueFull
 from Queue import Empty
 import sys
+import time
 from random import choice
 
 import pygame
@@ -112,34 +113,50 @@ def displayFileStarted(sampleGen):
             file=sampleGen
             )
 
+songStart = None
 
 class WebListener(mainLoop.PyGameProcess):
-    def __init__(self, controllerQueue):
+    def __init__(self, controllerQueue, playerQueue):
         super(WebListener, self).__init__(controllerQueue)
         self.nextCommand = None
+        self.playerQueue = playerQueue
 
     def onMessage(self, messageType, message):
-        nextCommand = (messageType, message)
+        print('WebListener got message', message)
+        self.nextCommand = (messageType, message)
 
+    def eachLoop(self):
+        print('Looping!', songStart)
 
-def CommandIterator(controller, fileList):
-    if controller.nextCommand is not None:
-        if controller.nextCommand[0] == "play next":
-            yield controller.nextCommand[1]
-        elif controller.nextCommand[0] == "stop":
-            raise StopIteration
-        elif controller.nextCommand[0] == "lost connection":
-            yield choice(fileList)
-        controller.nextCommand = None
-    else:
-        yield
+        if songStart is not None:
+            print('Time:', time.time() - songStart)
+            if time.time() - songStart > 120:
+                self.playerQueue.put({'song': 'foobar'})
+
+def CommandIterator(controller, fileList, controllerQueue):
+    while True:
+        if controller.nextCommand is not None:
+            if 'play next' in controller.nextCommand:
+                global songStart
+                songStart = time.time()
+                nextThing = controller.nextCommand['play next']
+                controller.nextCommand = None
+                yield nextThing
+            elif 'stop' in controller.nextCommand:
+                raise StopIteration
+            elif 'lost connection' in controller.nextCommand[0]:
+                controller.nextCommand = None
+                yield choice(fileList)
+        else:
+            controller.nextCommand = controllerQueue.get()
 
 
 def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None):
-    process = WebListener(controllerQueue)
+    print('before run')
+    process = WebListener(controllerQueue, playerQueue)
 
     #sampleGen = SampleGen(cycle(files), gcp)
-    sampleGen = SampleGen(CommandIterator(process, fileList), gcp)
+    sampleGen = SampleGen(CommandIterator(process, fileList, controllerQueue), gcp)
     sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen)
