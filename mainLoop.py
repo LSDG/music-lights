@@ -1,8 +1,10 @@
 from __future__ import print_function
 from ConfigParserDefault import ConfigParserDefault
 import collections
+import functools
 import os
 from Queue import Empty as QueueEmpty
+import traceback
 
 import pygame
 import pygame.locals
@@ -46,11 +48,19 @@ class BaseProcess(object):
         if not funcOrSet:
             return
 
-        func = funcOrSet
         if isinstance(funcOrSet, set):
-            func = lambda: [f(*args, **kwargs) for f in funcOrSet]
+            func = functools.partial(self.callCallbacks, funcOrSet, *args, **kwargs)
+        else:
+            func = functools.partial(self.callCallbacks, [funcOrSet], *args, **kwargs)
 
         self.queuedCallbacks.append(func)
+
+    def callCallbacks(self, callbacks, *args, **kwargs):
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except:
+                print("Exception calling {!r}(*{!r}, **{!r}):".format(cb, args, kwargs), traceback.format_exc())
 
     def loop(self):
         ansi.info("Starting process run loop...")
@@ -74,6 +84,9 @@ class BaseProcess(object):
             print()
             print("User interrupted; exiting.")
 
+        except Exception as ex:
+            print('Got Exception while looping:', traceback.format_exc())
+
         finally:
             ansi.info("Process shutting down...")
 
@@ -89,16 +102,21 @@ class QueueHandlerProcess(BaseProcess):
         self.messageQueue = messageQueue
 
     def onMessage(self, messageType, message):
+        # print('QueueHandler onMessage')
         if messageType == 'end':
             raise QuitApplication()
 
     def eachLoop(self):
+        # print('QueueHandler eachLoop')
         try:
             message = self.messageQueue.get_nowait()
+            # print('QueueHandler after get_nowait')
 
             messageType = message[0]
+            # print('About to call onMessage')
             self.onMessage(messageType, message)
         except QueueEmpty:
+            # print('QueueEmpty')
             pass
         #except Exception as exc:
         #    print('Exception while reading from queue:', exc)
@@ -125,6 +143,7 @@ class PyGameProcess(QueueHandlerProcess):
         handler(event)
 
     def eachLoop(self):
+        # print('PyGame eachLoop')
         super(PyGameProcess, self).eachLoop()
 
         #self.processEvent(pygame.event.wait())
