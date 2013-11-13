@@ -127,43 +127,50 @@ class WebListener(mainLoop.PyGameProcess):
     def onMessage(self, messageType, message):
         print('WebListener got message', message)
         self.nextCommand = (messageType, message)
+        next(self.gen.filenameIter)
 
     def eachLoop(self):
-        print('Looping!', songStart)
+        super(WebListener, self).eachLoop()
+        global songStart
+        # print('Looping!', songStart)
 
         if songStart is not None:
-            print('Time:', time.time() - songStart)
-            if time.time() - songStart > 120:
+            if time.time() - songStart > 20:
+                print('Time:', time.time(), songStart)
                 self.playerQueue.put({'song': 'foobar'})
+                songStart = time.time()
 
 def CommandIterator(controller, fileList, controllerQueue):
     while True:
         if controller.nextCommand is not None:
-            if 'play next' in controller.nextCommand:
+            if 'play next' in controller.nextCommand[0]:
+                print('CommandIterator got:', controller.nextCommand)
                 global songStart
                 songStart = time.time()
-                nextThing = controller.nextCommand['play next']
+                nextThing = controller.nextCommand[1]
                 controller.nextCommand = None
                 yield nextThing
-            elif 'stop' in controller.nextCommand:
+            elif 'stop' in controller.nextCommand[0]:
                 raise StopIteration
             elif 'lost connection' in controller.nextCommand[0]:
                 controller.nextCommand = None
                 yield choice(fileList)
         else:
+            print('CI get')
             controller.nextCommand = controllerQueue.get()
 
 
 def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None):
-    print('before run')
     process = WebListener(controllerQueue, playerQueue)
 
     #sampleGen = SampleGen(cycle(files), gcp)
     sampleGen = SampleGen(CommandIterator(process, fileList, controllerQueue), gcp)
-    sampleGen.onSongChanged.add(lambda: displayFileStarted(sampleGen))
+    sampleGen.onSongChanged.add(lambda *a, **kw: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen)
     SpectrumLightController(sampleGen)
+
+    process.gen = sampleGen
 
     process.loop()
 
