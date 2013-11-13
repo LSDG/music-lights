@@ -37,7 +37,7 @@ class SampleOutput(object):
         chunk.play()
 
 
-class PyGameProcess(QueueHandlerProcess):
+class PyGameProcess(mainLoop.QueueHandlerProcess):
     def __init__(self, messageQueue, nice=None):
         super(PyGameProcess, self).__init__(messageQueue, nice)
 
