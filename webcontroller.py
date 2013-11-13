@@ -1,10 +1,8 @@
 from multiprocessing import Process, Queue
-import os
-from Queue import Full as QueueFull
 from Queue import Empty
 import sys
 import hsaudiotag.auto
-import json
+import logging
 
 from socketIO_client import SocketIO, BaseNamespace, transports
 
@@ -12,6 +10,7 @@ import player
 
 files = sys.argv[1:]
 
+logging.basicConfig(level=logging.DEBUG)
 
 class WebController(BaseNamespace):
     def initialize(self):
@@ -34,12 +33,12 @@ class WebController(BaseNamespace):
         callback(playlist)
 
     def on_play_next(self, data, callback):
-        print 'Play next:', data
-        self.controllerQueue.put({'play next': data['song']})
+        print 'WebController: Play next:', data
+        self.controllerQueue.put(('play next', data['song']))
         callback()
 
     def on_stop(self):
-        self.controllerQueue.put({'stop': ''})
+        self.controllerQueue.put(('stop', ''))
 
     def generatePlaylist(self):
         playlist = list()
@@ -71,7 +70,7 @@ class WebController(BaseNamespace):
 
     def on_disconnect(self):
         self.disconnected = True
-        self.controllerQueue.put({'lost connection': ''})
+        self.controllerQueue.put(('lost connection', ''))
 
 
 if __name__ == '__main__':
@@ -80,7 +79,6 @@ if __name__ == '__main__':
     controller = socketIO.define(WebController, '/rpi')
 
     def onLoop(self):
-        print 'Looping!'
         global controller
         controller.readQueue()
         return self._recv_packet()
