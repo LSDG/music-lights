@@ -14,6 +14,7 @@ class SampleGen(object):
         self.onStopped = set()
         self.onSample = set()
 
+        self.file = None
         self.totalFramesRead = 0.0
         self.filenameIter = iter(filenames)
         self.currentData = None
@@ -45,9 +46,15 @@ class SampleGen(object):
 
         self.tags = tags
 
-        mainLoop.currentProcess.queuedCallbacks.append(lambda: [handler(tags) for handler in self.onSongChanged])
-
         self.file = audioread.audio_open(self.currentFilename)
+
+        songInfo = {
+                'channels': self.channels,
+                'samplerate': self.samplerate,
+                'duration': self.duration
+                }
+
+        mainLoop.currentProcess.queueCall(self.onSongChanged, tags, songInfo)
 
         blockSize = self.framesPerChunk * self.file.channels * self.bytes_per_frame_per_channel
         try:
@@ -63,18 +70,30 @@ class SampleGen(object):
 
     @property
     def elapsedTime(self):
+        if not self.file:
+            return 0
+
         return self.totalFramesRead / self.file.samplerate
 
     @property
     def channels(self):
+        if not self.file:
+            return 0
+
         return self.file.channels
 
     @property
     def samplerate(self):
+        if not self.file:
+            return 0
+
         return self.file.samplerate
 
     @property
     def duration(self):
+        if not self.file:
+            return 0
+
         return self.file.duration
 
     def nextChunk(self):
@@ -94,10 +113,6 @@ class SampleGen(object):
 
         self.currentData = data
         return data
-
-    def nextChunkSound(self):
-        import pygame
-        return pygame.mixer.Sound(buffer(self.nextChunk()))
 
     def close(self):
         # Stop stream.
