@@ -86,7 +86,8 @@ class SpectrumAnalyzer(object):
 
             numWindows = int(math.floor(len(rawData) / self.bytes_per_frame_per_channel / self.samplesPerWindow))
             if numWindows == 0:
-                print("Need {} samples for a window! (only have {})".format(self.samplesPerWindow, len(rawData) / self.bytes_per_frame_per_channel))
+                print("Need {} samples for a window! (only have {})"
+                        .format(self.samplesPerWindow, len(rawData) / self.bytes_per_frame_per_channel))
                 print(self._dataSinceLastSpectrum)
                 return [0 for _ in range(self.frequencyBands)]
 
@@ -101,6 +102,7 @@ class SpectrumAnalyzer(object):
             if not self.onSpectrum:
                 # No per-spectrum listeners, so ditch all but the most recent spectrum window.
                 dataArr = dataArr[-self.samplesPerWindow:]
+                numWindows = 1
 
             for windowNum in range(numWindows):
                 fftOut = self.calcWindow(dataArr, windowNum)
