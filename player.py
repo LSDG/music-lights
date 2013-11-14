@@ -150,13 +150,14 @@ def CommandIterator(controller, fileList, controllerQueue):
             controller.nextCommand = controllerQueue.get()
 
 
-def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None, useCommandIterator=True):
+def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None, standalone=False):
     process = WebListener(controllerQueue, playerQueue)
 
-    if useCommandIterator:
-        files = CommandIterator(process, fileList, controllerQueue)
+    if standalone:
+        files = cycle(fileList)
+        process = BaseProcess(controllerQueue)
     else:
-        files = cycle(files)
+        files = CommandIterator(process, fileList, controllerQueue)
 
     sampleGen = SampleGen(files, gcp)
     sampleGen.onSongChanged.add(lambda *a, **kw: displayFileStarted(sampleGen))
@@ -171,4 +172,4 @@ def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None, useComma
 
 
 if __name__ == '__main__':
-    runPlayerProcess(Queue(), Queue(), files)
+    runPlayerProcess(Queue(), Queue(), files, standalone=True)
