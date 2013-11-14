@@ -7,6 +7,8 @@ from multiprocessing import Process, Queue
 import os
 from Queue import Full as QueueFull
 import sys
+import time
+from random import choice
 
 try:
     import gobject
@@ -86,32 +88,87 @@ def displayFileStarted(sampleGen):
             file=sampleGen
             )
 
+songStart = None
 
-def runPlayerProcess(playerQueue, controllerQueue, nice=None):
-    if usePygame:
-        import pygame_output
-        SampleOutput = pygame_output.SampleOutput
-        process = pygame_output.PyGameProcess(controllerQueue)
 
-    elif useSFML:
-        import pysfml_output
-        SampleOutput = pysfml_output.SampleOutput
-        process = mainLoop.QueueHandlerProcess(controllerQueue)
+if usePygame:
+    import pygame_output
+    SampleOutput = pygame_output.SampleOutput
+    BaseProcess = pygame_output.PyGameProcess
 
+elif useSFML:
+    import pysfml_output
+    SampleOutput = pysfml_output.SampleOutput
+    BaseProcess = mainLoop.QueueHandlerProcess
+
+else:
+    import alsa_output
+    SampleOutput = alsa_output.SampleOutput
+    BaseProcess = alsa_output.ALSAProcess
+
+
+class WebListener(BaseProcess):
+    def __init__(self, controllerQueue, playerQueue):
+        super(WebListener, self).__init__(controllerQueue)
+        self.nextCommand = None
+        self.playerQueue = playerQueue
+
+    def onMessage(self, messageType, message):
+        print('WebListener got message', message)
+        self.nextCommand = (messageType, message)
+        next(self.gen.filenameIter)
+
+    def eachLoop(self):
+        super(WebListener, self).eachLoop()
+        global songStart
+        # print('Looping!', songStart)
+
+        if songStart is not None:
+            if time.time() - songStart > 20:
+                print('Time:', time.time(), songStart)
+                self.playerQueue.put({'song': 'foobar'})
+                songStart = time.time()
+
+
+def CommandIterator(controller, fileList, controllerQueue):
+    while True:
+        if controller.nextCommand is not None:
+            if 'play next' in controller.nextCommand[0]:
+                print('CommandIterator got:', controller.nextCommand)
+                global songStart
+                songStart = time.time()
+                nextThing = controller.nextCommand[1]
+                controller.nextCommand = None
+                yield nextThing
+            elif 'stop' in controller.nextCommand[0]:
+                raise StopIteration
+            elif 'lost connection' in controller.nextCommand[0]:
+                controller.nextCommand = None
+                yield choice(fileList)
+        else:
+            print('CI get')
+            controller.nextCommand = controllerQueue.get()
+
+
+def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None, useCommandIterator=True):
+    process = WebListener(controllerQueue, playerQueue)
+
+    if useCommandIterator:
+        files = CommandIterator(process, fileList, controllerQueue)
     else:
-        import alsa_output
-        SampleOutput = alsa_output.SampleOutput
-        process = alsa_output.ALSAProcess(controllerQueue)
+        files = cycle(files)
 
-    sampleGen = SampleGen(cycle(files), gcp)
-    sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))
+    sampleGen = SampleGen(files, gcp)
+    sampleGen.onSongChanged.add(lambda *a, **kw: displayFileStarted(sampleGen))
 
     SampleOutput(sampleGen).play()
 
     SpectrumLightController(sampleGen)
 
+    process.gen = sampleGen
+
     process.loop()
 
 
 if __name__ == '__main__':
-    runPlayerProcess(Queue(), Queue())
+    runPlayerProcess(Queue(), Queue(), files)

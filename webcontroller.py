@@ -1,68 +1,89 @@
 from multiprocessing import Process, Queue
-import os
-from Queue import Full as QueueFull
+from Queue import Empty
 import sys
 import hsaudiotag.auto
-import json
+import logging
 
-from socketIO_client import SocketIO, BaseNamespace
+from socketIO_client import SocketIO, BaseNamespace, transports
 
 import player
 
 files = sys.argv[1:]
 
+logging.basicConfig(level=logging.DEBUG)
+
 class WebController(BaseNamespace):
     def initialize(self):
+        self.disconnected = False
         self.playerQueue = Queue()
         self.controllerQueue = Queue()
 
-        self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue))
+        self.playerProcess = Process(target=player.runPlayerProcess, args=(self.playerQueue, self.controllerQueue, files))
+        self.playerProcess.start()
 
-    def on_list_songs(self):
+    def on_connect(self):
+        if self.disconnected:
+            self.disconnected = False
+            global controller
+            controller = socketIO.define(WebController, '/rpi')
+
+    def on_list_songs(self, callback):
         print 'Got list songs request'
         playlist = self.generatePlaylist()
-        self.emit('list songs', playlist)
+        callback(playlist)
 
-    def on_play_next(self, song):
-        print 'Play next:', song
-        self.controller.controllerQueue.put(song)
+    def on_play_next(self, data, callback):
+        print 'WebController: Play next:', data
+        self.controllerQueue.put(('play next', data['song']))
+        callback()
+
+    def on_stop(self):
+        self.controllerQueue.put(('stop', ''))
 
     def generatePlaylist(self):
         playlist = list()
         for song in files:
             tags = hsaudiotag.auto.File(song)
             if not tags.valid:
-                entry = json.dumps({
+                entry = {
                     'title': song,
                     'filename': song
-                })
+                }
             else:
-                entry = json.dumps({
+                entry = {
                     'artist': tags.artist,
                     'album': tags.album,
                     'title': tags.title,
                     'duration': tags.duration,
                     'filename': song
-                })
+                }
             playlist.append(entry)
         return playlist
 
-class Application(object):
-    def __init__(self):
-        pass
+    def readQueue(self):
+        try:
+            msg = self.playerQueue.get_nowait()
+            print 'Msg from player:', msg
+            self.emit('song finished', {'song': msg['song']})
+        except Empty:
+            pass
 
-    def __call__(self, environ, start_response):
-        path = environ['PATH_INFO'].strip('/')
-
-        if path.startswith('socket.io'):
-            socketio_manage(environ, {'': ControllerNamespace}, self.request)
+    def on_disconnect(self):
+        self.disconnected = True
+        self.controllerQueue.put(('lost connection', ''))
 
 
 if __name__ == '__main__':
-    server = SocketIOServer(('0.0.0.0', 8080), Application(), resource='socket.io')
+    socketIO = SocketIO('localhost', 8080)
 
-    controller = WebController(server)
+    controller = socketIO.define(WebController, '/rpi')
 
-    server.serve_forever()
+    def onLoop(self):
+        global controller
+        controller.readQueue()
+        return self._recv_packet()
 
+    transports._AbstractTransport._recv_packet = transports._AbstractTransport.recv_packet
+    transports._AbstractTransport.recv_packet = onLoop
 
+    socketIO.wait()
