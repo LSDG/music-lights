@@ -1,6 +1,6 @@
 import importlib
 import os
-from os.path import basename, dirname, join
+from os.path import basename, dirname, exists, join
 import subprocess
 import sys
 
@@ -34,16 +34,18 @@ def after_install(options, virt_env_dir):
     site_packages_dir = join(virt_env_dir, 'lib', py_version)
 
     for path in packageFilesToLink:
-        while not basename(dirname(path)).endswith('-packages') and not basename(dirname(path)).startswith('python'):
-            path = dirname(path)
+        targetFile = join(site_packages_dir, basename(path))
+        if not exists(targetFile):
+            while not basename(dirname(path)).endswith('-packages') and not basename(dirname(path)).startswith('python'):
+                path = dirname(path)
 
-        try:
-            os.symlink(path, join(site_packages_dir, basename(path)))
-        except Exception:
-            import traceback
-            print("Error symlinking {!r} into {!r}:".format(path, site_packages_dir))
-            traceback.print_exc()
-            sys.exit(1)
+            try:
+                os.symlink(path, targetFile)
+            except Exception:
+                import traceback
+                print("Error symlinking {!r} into {!r}:".format(path, site_packages_dir))
+                traceback.print_exc()
+                sys.exit(1)
 
     # Install remaining packages
     subprocess.call([join(virt_env_dir, 'bin', 'easy_install')] + packagesToInstall)
