@@ -6,8 +6,17 @@ from weakref import ref
 import serial
 
 import ansi
+
+from ConfigParserDefault import ConfigParserDefault
 from mainLoop import QueueHandlerProcess
 from songConfig import SongConfig
+
+
+gcp = ConfigParserDefault()
+gcp.read('config.ini')
+
+serialDevice = gcp.get_def('serial', 'device', '/dev/ttyAMA0')
+serialSpeed = int(gcp.get_def('serial', 'speed', 115200))
 
 
 class LightController(object):
@@ -18,8 +27,7 @@ class LightController(object):
         self.songConfig = SongConfig(config)
 
         #TODO: Read serial port from config
-        self.serial = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
-        #self.serial = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+        self.serial = serial.Serial(serialDevice, serialSpeed, timeout=1)
 
         self.delayBetweenUpdates = 0.2
 

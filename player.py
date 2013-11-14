@@ -1,7 +1,6 @@
 #!/bin/env python
 from __future__ import print_function
 import atexit
-from ConfigParserDefault import ConfigParserDefault
 from itertools import cycle
 from multiprocessing import Process, Queue
 import os
@@ -17,6 +16,7 @@ except ImportError:
 
 import ansi
 
+from ConfigParserDefault import ConfigParserDefault
 import mainLoop
 from sampleGen import SampleGen
 
