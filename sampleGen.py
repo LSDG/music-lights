@@ -110,7 +110,7 @@ class SampleGen(object):
 
         self.totalFramesRead += self.framesPerChunk
 
-        mainLoop.currentProcess.queueCall(self.onSample)
+        mainLoop.currentProcess.queueCall(self.onSample, data)
 
         self.currentData = data
         return data
