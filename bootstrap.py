@@ -1845,7 +1845,7 @@ def after_install(options, virt_env_dir):
     site_packages_dir = join(virt_env_dir, 'lib', py_version)
 
     for path in packageFilesToLink:
-        while basename(dirname(path)) != 'site-packages':
+        while not basename(dirname(path)).endswith('-packages') and not basename(dirname(path)).startswith('python'):
             path = dirname(path)
 
         try:
