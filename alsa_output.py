@@ -10,8 +10,7 @@ class SampleOutput(object):
         self.sampleGen = sampleGen
         sampleGen.onSongChanged.add(self.onSongChanged)
 
-        card = alsaaudio.cards()[0]
-        self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK, mode=alsaaudio.PCM_NORMAL, card=card)
+        self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK, mode=alsaaudio.PCM_NORMAL)
 
     def onSongChanged(self, *args, **kwargs):
         ansi.debug('onSongChanged')
