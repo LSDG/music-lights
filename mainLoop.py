@@ -99,21 +99,14 @@ class QueueHandlerProcess(BaseProcess):
         self.messageQueue = messageQueue
 
     def onMessage(self, messageType, message):
-        # print('QueueHandler onMessage')
         if messageType == 'end':
             raise QuitApplication()
 
     def eachLoop(self):
-        # print('QueueHandler eachLoop')
         try:
             message = self.messageQueue.get_nowait()
-            # print('QueueHandler after get_nowait')
 
             messageType = message[0]
-            # print('About to call onMessage')
             self.onMessage(messageType, message)
         except QueueEmpty:
-            # print('QueueEmpty')
             pass
-        #except Exception as exc:
-        #    print('Exception while reading from queue:', exc)
