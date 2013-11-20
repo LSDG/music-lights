@@ -6,7 +6,14 @@ from numpy.fft import fftfreq
 
 import pyfftw
 
+import ansi
+
 import mainLoop
+
+
+def chunks(sequence, chunkSize):
+    for start in range(0, len(sequence), chunkSize):
+        yield sequence[start:start + chunkSize]
 
 
 class SpectrumAnalyzer(object):
@@ -18,11 +25,12 @@ class SpectrumAnalyzer(object):
         self._currentSpectrum = None
         self._dataSinceLastSpectrum = []
         self._samplerate = 1
+        self.channels = 2
 
         self.loadSettings(config)
 
         # Warm up pyFFTW, allowing it to determine which FFT algorithm will work fastest on this machine.
-        buf = pyfftw.n_byte_align_empty(self.samplesPerSlice, pyfftw.simd_alignment, 'float64')
+        buf = pyfftw.n_byte_align_empty(self.samplesPerWindow, pyfftw.simd_alignment, 'float64')
         self.fft = pyfftw.builders.rfft(buf, threads=self.fftThreads, overwrite_input=True)#, avoid_copy=True)
 
         self.dataBuffer = self.fft.get_input_array()
@@ -45,7 +53,7 @@ class SpectrumAnalyzer(object):
         # Average `sliceWindow` samples to get the spectrum for each call to onSpectrum.
         self.sliceWindow = int(gcp.get_def('main', 'sliceWindow', 16))
 
-        self.samplesPerWindow = self.samplesPerSlice * self.sliceWindow
+        self.framesPerWindow = self.samplesPerSlice * self.sliceWindow
 
         self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
 
@@ -54,33 +62,28 @@ class SpectrumAnalyzer(object):
         # Pre-calculate the constant used to normalize the signal data.
         self.normalizationConst = float(2 ** (self.bytes_per_frame_per_channel * 8))
 
+    @property
+    def samplesPerWindow(self):
+        return self.framesPerWindow * self.channels
+
+    @property
+    def bytesPerFrame(self):
+        return self.bytes_per_frame_per_channel * self.channels
+
     def _onChunk(self, data):
         self._currentSpectrum = None
         self._dataSinceLastSpectrum.append(data)
 
-    def calcSlice(self, dataArr, sliceNum):
-        fromSample = sliceNum * self.samplesPerSlice
-        toSample = fromSample + self.samplesPerSlice
-
-        if toSample > len(dataArr):
-            # Not enough data for this slice; skip.
-            return [0 for _ in range(self.frequencyBands)]
-
+    def calcWindow(self, dataArr, windowNum):
+        fromSample = windowNum * self.samplesPerWindow
+        toSample = fromSample + self.samplesPerWindow
         self.dataBuffer[:] = dataArr[fromSample:toSample] / self.normalizationConst
 
         fftOut = self.fft()
 
-        # Cut the spectrum down to the appropriate number of bands. (ditch the zero-frequency band and the negative
-        # frequencies)
-        return abs(fftOut[1:self.frequencyBands + 1])
-
-    def calcWindow(self, dataArr, windowNum):
         return map(
                 (lambda arr: sum(arr) / self.sliceWindow),
-                zip(*[
-                    self.calcSlice(dataArr, windowNum * self.sliceWindow + sliceNum)
-                    for sliceNum in range(self.sliceWindow)
-                    ])
+                chunks(abs(fftOut[1:self.frequencyBands * self.sliceWindow + 1]), self.sliceWindow)
                 )
 
     @property
@@ -88,15 +91,15 @@ class SpectrumAnalyzer(object):
         if self._currentSpectrum is None:
             rawData = ''.join(self._dataSinceLastSpectrum)
 
-            numWindows = int(math.floor(len(rawData) / self.bytes_per_frame_per_channel / self.samplesPerWindow))
+            numWindows = int(math.floor(len(rawData) / self.bytesPerFrame / self.framesPerWindow))
             if numWindows == 0:
-                print("Need {} samples for a window! (only have {})"
-                        .format(self.samplesPerWindow, len(rawData) / self.bytes_per_frame_per_channel))
+                ansi.warn("Need {} frames for a window! (only have {})",
+                        self.framesPerWindow, len(rawData) / self.bytesPerFrame)
                 return [0 for _ in range(self.frequencyBands)]
 
-            if len(rawData) % (self.samplesPerWindow * self.bytes_per_frame_per_channel) != 0:
-                self._dataSinceLastSpectrum = [rawData[numWindows * self.samplesPerWindow:]]
-                rawData = rawData[:numWindows * self.samplesPerWindow]
+            if len(rawData) % (self.framesPerWindow * self.bytesPerFrame) != 0:
+                self._dataSinceLastSpectrum = [rawData[numWindows * self.framesPerWindow * self.bytesPerFrame:]]
+                rawData = rawData[:numWindows * self.samplesPerWindow * self.bytesPerFrame]
             else:
                 self._dataSinceLastSpectrum = []
 
@@ -119,14 +122,11 @@ class SpectrumAnalyzer(object):
     @property
     def fftFrequencies(self):
         frequencies = fftfreq(self.samplesPerSlice)
-        print("Total generated frequency bands: {} {!r}".format(
-                len(frequencies),
-                frequencies
-                ))
-        print("Trimmed frequency bands: {} {!r}".format(
+        ansi.info("Total generated frequency bands: {} {!r}", len(frequencies), frequencies)
+        ansi.info("Trimmed frequency bands: {} {!r}",
                 len(frequencies[1:self.frequencyBands + 1]),
                 abs(frequencies[1:self.frequencyBands + 1])
-                ))
+                )
 
         # From http://docs.scipy.org/doc/numpy/reference/routines.fft.html#implementation-details:
         # > For an even number of input points, A[n/2] represents both positive and negative Nyquist frequency, and is
@@ -142,6 +142,7 @@ class SpectrumAnalyzer(object):
         if messageType == 'songChange':
             filename, fileInfo = message[1:3]
             self._samplerate = fileInfo['samplerate']
+            self.channels = fileInfo['channels']
 
         elif messageType == 'chunk':
             self._onChunk(*message[1:])
