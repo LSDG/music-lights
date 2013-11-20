@@ -17,6 +17,7 @@ gcp.read('config.ini')
 
 serialDevice = gcp.get_def('serial', 'device', '/dev/ttyAMA0')
 serialSpeed = int(gcp.get_def('serial', 'speed', 115200))
+serialDebug = gcp.get_def('serial', 'debug', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 
 
 class LightController(object):
@@ -26,14 +27,13 @@ class LightController(object):
 
         self.songConfig = SongConfig(config)
 
-        #TODO: Read serial port from config
         ansi.info('Serial connecting to {} at {} bps', serialDevice, serialSpeed)
         self.serial = serial.Serial(serialDevice, serialSpeed, timeout=1)
 
         self.delayBetweenUpdates = 0.2
 
-        self.ready = False
-        #self.ready = True
+        # Assume we're already started unless we're using the USB interface to the Arduino.
+        self.ready = 'ttyACM' not in serialDevice
         while not self.ready:
             if self.readFromSerial().startswith('LSDG Holiday Light controller ver '):
                 self.ready = True
@@ -42,17 +42,19 @@ class LightController(object):
 
     def readFromSerial(self):
         data = self.serial.readline()
-        ansi.stdout(
-                "{style.bold.fg.black} Arduino -> RPi:{style.none} {data!r}",
-                data=data
-                )
+        if serialDebug:
+            ansi.stdout(
+                    "{style.bold.fg.black} Arduino -> RPi:{style.none} {data!r}",
+                    data=data
+                    )
         return data
 
     def writeToSerial(self, data):
-        ansi.stdout(
-                "{style.bold.fg.black}Arduino <- RPi :{style.none} {data!r}",
-                data=data
-                )
+        if serialDebug:
+            ansi.stdout(
+                    "{style.bold.fg.black}Arduino <- RPi :{style.none} {data!r}",
+                    data=data
+                    )
         self.serial.write(data)
         self.serial.flush()
 
