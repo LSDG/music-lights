@@ -17,12 +17,14 @@ class SampleOutput(object):
     def onSongChanged(self, *args, **kwargs):
         ansi.debug('onSongChanged')
 
-        ansi.info('channels: {}; samplerate: {}; period size: {}', self.sampleGen.channels, self.sampleGen.samplerate, self.sampleGen.framesPerChunk)
-
         if self.pcm:
             self.pcm.close()
 
         self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK)  # mode=alsaaudio.PCM_NORMAL)
+
+        if self.debug:
+            ansi.debug('Song changed; channels: {}; samplerate: {}; period size: {}',
+                    self.sampleGen.channels, self.sampleGen.samplerate, self.sampleGen.framesPerChunk)
 
         self.pcm.setchannels(self.sampleGen.channels)
         self.pcm.setrate(self.sampleGen.samplerate)

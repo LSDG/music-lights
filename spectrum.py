@@ -41,7 +41,7 @@ class SpectrumAnalyzer(object):
 
     def loadSettings(self, gcp):
         # The number of spectrum analyzer bands (also light output channels) to use.
-        self.frequencyBands = int(gcp.get_def('main', 'frequencyBands', 16))
+        self.frequencyBands = int(gcp.get_def('spectrum', 'frequencyBands', 16))
 
         # From http://docs.scipy.org/doc/numpy/reference/routines.fft.html#real-and-hermitian-transforms:
         # > The family of rfft functions is designed to operate on real inputs, and exploits this symmetry by
@@ -55,26 +55,29 @@ class SpectrumAnalyzer(object):
         self.samplesPerSlice = 2 * self.frequencyBands
 
         # Average `sliceWindow` samples to get the spectrum for each call to onSpectrum.
-        self.sliceWindow = int(gcp.get_def('main', 'sliceWindow', 16))
+        self.sliceWindow = int(gcp.get_def('spectrum', 'sliceWindow', 16))
 
         self.framesPerWindow = self.samplesPerSlice * self.sliceWindow
 
-        self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
+        self.windowCoefficients = self.hamming()
 
-        self.fftThreads = int(gcp.get_def('main', 'fftThreads', 1))
+        self.bytes_per_frame_per_channel = int(gcp.get_def('input', 'bytes_per_frame_per_channel', 2))
+
+        self.fftThreads = int(gcp.get_def('spectrum', 'fftThreads', 1))
 
         # Pre-calculate the constant used to normalize the signal data.
         self.normalizationConst = float(2 ** (self.bytes_per_frame_per_channel * 8))
 
-    def hamming(self, samples):
+    def hamming(self):
         """Simple implementation of a Hamming window function.
 
         See https://en.wikipedia.org/wiki/Window_function#Hamming_window
 
         """
-        innerCoefficient = 2 * math.pi / (len(samples) - 1)
-        return samples * [alpha - beta * math.cos(innerCoefficient * sampleNum)
-                for sampleNum in range(len(samples))]
+        innerCoefficient = 2 * math.pi / (self.samplesPerWindow - 1)
+
+        return [alpha - beta * math.cos(innerCoefficient * sampleNum)
+                for sampleNum in range(self.samplesPerWindow)]
 
     @property
     def samplesPerWindow(self):
@@ -91,7 +94,7 @@ class SpectrumAnalyzer(object):
     def calcWindow(self, dataArr, windowNum):
         fromSample = windowNum * self.samplesPerWindow
         toSample = fromSample + self.samplesPerWindow
-        self.dataBuffer[:] = self.hamming(dataArr[fromSample:toSample] / self.normalizationConst)
+        self.dataBuffer[:] = self.windowCoefficients * dataArr[fromSample:toSample] / self.normalizationConst
 
         fftOut = self.fft()
 
@@ -157,6 +160,9 @@ class SpectrumAnalyzer(object):
             filename, fileInfo = message[1:3]
             self._samplerate = fileInfo['samplerate']
             self.channels = fileInfo['channels']
+
+            # Recalculate window coefficients, in case the number of channels changed.
+            self.windowCoefficients = self.hamming()
 
         elif messageType == 'chunk':
             self._onChunk(*message[1:])

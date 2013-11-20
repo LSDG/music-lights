@@ -8,12 +8,20 @@ import logging
 
 from socketIO_client import SocketIO, BaseNamespace, transports, ConnectionError
 
+from ConfigParserDefault import ConfigParserDefault
 import player
 
 
+gcp = ConfigParserDefault()
+gcp.read('config.ini')
+
+webServerAddress = gcp.get_def('web', 'serverAddress', 'localhost')
+webServerPort = int(gcp.get_def('web', 'serverPort', 8080))
+webDebug = gcp.get_def('web', 'debug', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+
 files = sys.argv[1:]
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG if webDebug else logging.INFO)
 
 
 class HeartbeatListener(BaseNamespace):
@@ -83,7 +91,7 @@ class WebController(BaseNamespace):
 
 def buildSocket(controllerQueue):
     try:
-        socketIO = SocketIO('localhost', 8080, HeartbeatListener, wait_for_connection=False)
+        socketIO = SocketIO(webServerAddress, webServerPort, HeartbeatListener, wait_for_connection=False)
         return socketIO
     except ConnectionError:
         controllerQueue.put(('no connection', ''))
