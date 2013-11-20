@@ -118,16 +118,6 @@ class WebListener(BaseProcess):
         self.nextCommand = (messageType, message)
         next(self.gen.filenameIter)
 
-    def eachLoop(self):
-        super(WebListener, self).eachLoop()
-        global songStart
-
-        if songStart is not None:
-            if time.time() - songStart > 20:
-                print('Time:', time.time(), songStart)
-                self.playerQueue.put({'song': 'foobar'})
-                songStart = time.time()
-
 
 def CommandIterator(controller, fileList, controllerQueue):
     while True:
