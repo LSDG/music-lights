@@ -121,7 +121,6 @@ class WebListener(BaseProcess):
     def eachLoop(self):
         super(WebListener, self).eachLoop()
         global songStart
-        # print('Looping!', songStart)
 
         if songStart is not None:
             if time.time() - songStart > 20:
@@ -142,7 +141,7 @@ def CommandIterator(controller, fileList, controllerQueue):
                 yield nextThing
             elif 'stop' in controller.nextCommand[0]:
                 raise StopIteration
-            elif 'lost connection' in controller.nextCommand[0]:
+            elif 'no connection' in controller.nextCommand[0]:
                 controller.nextCommand = None
                 yield choice(fileList)
         else:
