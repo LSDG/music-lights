@@ -15,13 +15,20 @@ alpha = 0.53836
 beta = 0.46164
 
 
-def chunks(sequence, chunkSize):
-    for start in range(0, len(sequence), chunkSize):
-        yield sequence[start:start + chunkSize]
+def chunks(sequence, chunkCount):
+    itemCount = len(sequence)
+    chunkSize = itemCount / chunkCount
+    for chunkNum in range(0, chunkCount):
+        start = chunkNum * chunkSize
+        yield sequence[int(round(start)):int(round(start + chunkSize))]
+
+
+def avg(sequence):
+    return sum(sequence) / len(sequence)
 
 
 class SpectrumAnalyzer(object):
-    def __init__(self, messageQueue, config):
+    def __init__(self, messageQueue, config, keepZeroBand=False):
         self.messageQueue = messageQueue
 
         self.onSpectrum = set()
@@ -30,12 +37,13 @@ class SpectrumAnalyzer(object):
         self._dataSinceLastSpectrum = []
         self._samplerate = 1
         self.channels = 2
+        self.keepZeroBand = keepZeroBand
 
         self.loadSettings(config)
 
         # Warm up pyFFTW, allowing it to determine which FFT algorithm will work fastest on this machine.
-        buf = pyfftw.n_byte_align_empty(self.samplesPerWindow, pyfftw.simd_alignment, 'float64')
-        self.fft = pyfftw.builders.rfft(buf, threads=self.fftThreads, overwrite_input=True)#, avoid_copy=True)
+        buf = pyfftw.n_byte_align_empty(self.framesPerWindow, pyfftw.simd_alignment, 'float64')
+        self.fft = pyfftw.builders.rfft(buf, threads=self.fftThreads, overwrite_input=True)  # , avoid_copy=True)
 
         self.dataBuffer = self.fft.get_input_array()
 
@@ -51,13 +59,13 @@ class SpectrumAnalyzer(object):
         # Since we want `frequencyBands` channels, not including negative frequencies or the zero frequency, we
         # actually want to generate `frequencyBands + 1` bands according to the above definition.
         # Solving `b+1 = n/2+1` for `n` gives us `n = 2b`, so we generate each slice of the spectrum using
-        # `2 * frequencyBands` samples.
-        self.samplesPerSlice = 2 * self.frequencyBands
+        # `2 * frequencyBands` frames.
+        self.framesPerSlice = 2 * self.frequencyBands
 
-        # Average `sliceWindow` samples to get the spectrum for each call to onSpectrum.
+        # Average `sliceWindow` slices to get the spectrum for each call to onSpectrum.
         self.sliceWindow = int(gcp.get_def('spectrum', 'sliceWindow', 16))
 
-        self.framesPerWindow = self.samplesPerSlice * self.sliceWindow
+        self.framesPerWindow = self.framesPerSlice * self.sliceWindow
 
         self.windowCoefficients = self.hamming()
 
@@ -74,14 +82,10 @@ class SpectrumAnalyzer(object):
         See https://en.wikipedia.org/wiki/Window_function#Hamming_window
 
         """
-        innerCoefficient = 2 * math.pi / (self.samplesPerWindow - 1)
+        innerCoefficient = 2 * math.pi / (self.framesPerWindow - 1)
 
-        return [alpha - beta * math.cos(innerCoefficient * sampleNum)
-                for sampleNum in range(self.samplesPerWindow)]
-
-    @property
-    def samplesPerWindow(self):
-        return self.framesPerWindow * self.channels
+        return [alpha - beta * math.cos(innerCoefficient * frameNum)
+                for frameNum in range(self.framesPerWindow)]
 
     @property
     def bytesPerFrame(self):
@@ -92,18 +96,22 @@ class SpectrumAnalyzer(object):
         self._dataSinceLastSpectrum.append(data)
 
     def calcWindow(self, channelData, windowNum):
-        fromSample = windowNum * self.samplesPerWindow
-        toSample = fromSample + self.samplesPerWindow
+        fromFrame = windowNum * self.framesPerWindow
+        toFrame = fromFrame + self.framesPerWindow
 
         fftOut = []
+        outputsPerChannel = int(self.frequencyBands / float(self.channels))
         for channel in channelData:
-            self.dataBuffer[:] = self.windowCoefficients * channel[fromSample:toSample] / self.normalizationConst
+            self.dataBuffer[:] = self.windowCoefficients * channel[fromFrame:toFrame] / self.normalizationConst
 
             channelFFTOut = self.fft()
 
             fftOut.extend(map(
-                    (lambda arr: sum(arr) / self.sliceWindow),
-                    chunks(abs(channelFFTOut[1:self.frequencyBands * self.sliceWindow + 1]), self.sliceWindow)
+                    avg,
+                    chunks(
+                        abs(channelFFTOut[0 if self.keepZeroBand else 1:len(channelFFTOut) / 2 + 1]),
+                        outputsPerChannel
+                        )
                     ))
 
         return fftOut
@@ -121,7 +129,7 @@ class SpectrumAnalyzer(object):
 
             if len(rawData) % (self.framesPerWindow * self.bytesPerFrame) != 0:
                 self._dataSinceLastSpectrum = [rawData[numWindows * self.framesPerWindow * self.bytesPerFrame:]]
-                rawData = rawData[:numWindows * self.samplesPerWindow * self.bytesPerFrame]
+                rawData = rawData[:numWindows * self.framesPerWindow * self.bytesPerFrame]
             else:
                 self._dataSinceLastSpectrum = []
 
@@ -132,7 +140,7 @@ class SpectrumAnalyzer(object):
 
             if not self.onSpectrum:
                 # No per-spectrum listeners, so ditch all but the most recent spectrum window.
-                dataArr = dataArr[-self.samplesPerWindow:]
+                dataArr = dataArr[-self.framesPerWindow:]
                 numWindows = 1
 
             for windowNum in range(numWindows):
@@ -144,13 +152,13 @@ class SpectrumAnalyzer(object):
 
         return self._currentSpectrum
 
-    @property
-    def fftFrequencies(self):
-        frequencies = fftfreq(self.samplesPerSlice)
+    def fftFrequencies(self, sampleRate):
+        frequencies = fftfreq(self.framesPerSlice) * sampleRate
+        startFreq = 0 if self.keepZeroBand else 1
         ansi.info("Total generated frequency bands: {} {!r}", len(frequencies), frequencies)
         ansi.info("Trimmed frequency bands: {} {!r}",
-                len(frequencies[1:self.frequencyBands + 1]),
-                abs(frequencies[1:self.frequencyBands + 1])
+                len(frequencies[startFreq:self.frequencyBands + 1]),
+                abs(frequencies[startFreq:self.frequencyBands + 1])
                 )
 
         # From http://docs.scipy.org/doc/numpy/reference/routines.fft.html#implementation-details:
@@ -159,7 +167,7 @@ class SpectrumAnalyzer(object):
         #
         # Since numpy gives us -0.5 as the frequency of A[n/2], we need to call abs() on the frequencies for it to make
         # sense.
-        return abs(frequencies[1:self.frequencyBands + 1]) * self._samplerate
+        return abs(frequencies[startFreq:self.frequencyBands + 1])
 
     def onMessage(self, message):
         messageType = message[0]

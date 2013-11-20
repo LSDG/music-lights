@@ -20,7 +20,7 @@ class AnalyzerProcess(mainLoop.QueueHandlerProcess):
         self.sampleGen.onSample.add(self._onSample)
         self.sampleGen.onSongChanged.add(self._onSongChanged)
 
-        self.analyzer = SpectrumAnalyzer(self.messageQueue, self.config)
+        self.analyzer = SpectrumAnalyzer(self.messageQueue, self.config, keepZeroBand=True)
 
         self.csvFile = open(csvFilename, 'wb')
         self.csv = csv.writer(self.csvFile)
@@ -40,9 +40,10 @@ class AnalyzerProcess(mainLoop.QueueHandlerProcess):
         except QueueFull:
             ansi.error("Message queue to light process full! Continuing...")
 
-        mainLoop.currentProcess.queueCall(lambda:
-                self.csv.writerow(['{} Hz'.format(f) for f in self.analyzer.fftFrequencies])
-                )
+        self.csv.writerow([
+            '{} Hz'.format(f)
+            for f in self.analyzer.fftFrequencies(self.sampleGen.samplerate)
+            ])
 
     def _onSample(self, data):
         try:
