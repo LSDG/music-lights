@@ -1,3 +1,4 @@
+from __future__ import print_function
 from multiprocessing import Process, Queue
 from Queue import Empty
 import sys
@@ -9,9 +10,11 @@ from socketIO_client import SocketIO, BaseNamespace, transports, ConnectionError
 
 import player
 
+
 files = sys.argv[1:]
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 class HeartbeatListener(BaseNamespace):
     def initialize(self):
@@ -26,18 +29,19 @@ class HeartbeatListener(BaseNamespace):
 
     def onLoop(self):
         if time.time() - self.lastHeartbeat > 70 and not self.disconnected:
-            print 'HeartbeatListener: Heartbeat timeout (>70)'
+            print('HeartbeatListener: Heartbeat timeout (>70)')
             self.disconnected = True
             socketIO._namespace_by_path['/rpi'].on_disconnect()
 
+
 class WebController(BaseNamespace):
     def on_list_songs(self, callback):
-        print 'Got list songs request'
+        print('Got list songs request')
         playlist = self.generatePlaylist()
         callback(playlist)
 
     def on_play_next(self, data, callback):
-        print 'WebController: Play next:', data
+        print('WebController: Play next:', data)
         self.controllerQueue.put(('play next', data['song']))
         callback()
 
@@ -45,7 +49,7 @@ class WebController(BaseNamespace):
         self.controllerQueue.put(('stop', ''))
 
     def on_disconnect(self):
-        print 'WebController disconnected'
+        print('WebController disconnected')
         self.controllerQueue.put(('lost connection', ''))
 
     def generatePlaylist(self):
@@ -71,10 +75,11 @@ class WebController(BaseNamespace):
     def onLoop(self):
         try:
             msg = self.playerQueue.get_nowait()
-            print 'Msg from player:', msg
+            print('Msg from player:', msg)
             self.emit('song finished', {'song': msg['song']})
         except Empty:
             pass
+
 
 def buildSocket(controllerQueue):
     try:
