@@ -27,6 +27,7 @@ class LightController(object):
         self.songConfig = SongConfig(config)
 
         #TODO: Read serial port from config
+        ansi.info('Serial connecting to {} at {} bps', serialDevice, serialSpeed)
         self.serial = serial.Serial(serialDevice, serialSpeed, timeout=1)
 
         self.delayBetweenUpdates = 0.2
@@ -42,8 +43,8 @@ class LightController(object):
     def readFromSerial(self):
         data = self.serial.readline()
         ansi.stdout(
-                "{style.bold.fg.black} Arduino -> RPi:{style.none} {data}",
-                data=data.rstrip('\n')
+                "{style.bold.fg.black} Arduino -> RPi:{style.none} {data!r}",
+                data=data
                 )
         return data
 
