@@ -60,7 +60,7 @@ class LightController(object):
 
     def _onChunk(self):
         now = datetime.datetime.now()
-        if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
+        if (now - self.lastLightUpdate).total_seconds() > delayBetweenUpdates:
             self.lastLightUpdate = now
 
         spectrum = self.analyzer().spectrum
