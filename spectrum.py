@@ -62,6 +62,10 @@ class SpectrumAnalyzer(object):
         fromSample = sliceNum * self.samplesPerSlice
         toSample = fromSample + self.samplesPerSlice
 
+        if toSample > len(dataArr):
+            # Not enough data for this slice; skip.
+            return [0 for _ in range(self.frequencyBands)]
+
         self.dataBuffer[:] = dataArr[fromSample:toSample] / self.normalizationConst
 
         fftOut = self.fft()
@@ -88,7 +92,6 @@ class SpectrumAnalyzer(object):
             if numWindows == 0:
                 print("Need {} samples for a window! (only have {})"
                         .format(self.samplesPerWindow, len(rawData) / self.bytes_per_frame_per_channel))
-                print(self._dataSinceLastSpectrum)
                 return [0 for _ in range(self.frequencyBands)]
 
             if len(rawData) % (self.samplesPerWindow * self.bytes_per_frame_per_channel) != 0:
