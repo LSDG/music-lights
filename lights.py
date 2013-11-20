@@ -64,7 +64,8 @@ class LightController(object):
             self.lastLightUpdate = now
 
         spectrum = self.analyzer().spectrum
-        bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
+        spectrumBands = len(spectrum) - 1
+        bands = [spectrum[max(i, spectrumBands)] for i in self.songConfig.frequencyBandOrder]
         lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
 
         changeCmd = []
