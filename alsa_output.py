@@ -10,14 +10,20 @@ class SampleOutput(object):
         self.sampleGen = sampleGen
         sampleGen.onSongChanged.add(self.onSongChanged)
 
-        self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK, mode=alsaaudio.PCM_NORMAL)
+        self.pcm = None
 
     def onSongChanged(self, *args, **kwargs):
         ansi.debug('onSongChanged')
 
+        ansi.info('channels: {}; samplerate: {}; period size: {}', self.sampleGen.channels, self.sampleGen.samplerate, self.sampleGen.framesPerChunk)
+
+        if not self.pcm:
+            self.pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK)  # mode=alsaaudio.PCM_NORMAL)
+
         self.pcm.setchannels(self.sampleGen.channels)
         self.pcm.setrate(self.sampleGen.samplerate)
         self.pcm.setperiodsize(self.sampleGen.framesPerChunk)
+        self.pcm.setformat(alsaaudio.PCM_FORMAT_S16_LE)
 
     def play(self):
         mainLoop.currentProcess.afterEachLoop = self.queueNextSound
@@ -30,7 +36,9 @@ class SampleOutput(object):
                 suppressNewline=True
                 )
 
-        self.pcm.write(self.sampleGen.nextChunk())
+        chunk = self.sampleGen.nextChunk()
+        if self.pcm:
+            self.pcm.write(chunk)
 
 
 class ALSAProcess(mainLoop.QueueHandlerProcess):
