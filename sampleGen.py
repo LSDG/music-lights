@@ -3,6 +3,8 @@ import json
 import audioread
 import hsaudiotag.auto
 
+import ansi
+
 import mainLoop
 
 
@@ -54,6 +56,13 @@ class SampleGen(object):
                 'samplerate': self.samplerate,
                 'duration': self.duration
                 }
+        ansi.info("Loaded song {!r}; channels: {}; samplerate: {}; duration: {} (duration from tags: {})",
+                self.currentFilename,
+                self.channels,
+                self.samplerate,
+                self.duration,
+                tags.duration
+                )
 
         mainLoop.currentProcess.queueCall(self.onSongChanged, tags, songInfo)
 
