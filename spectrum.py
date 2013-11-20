@@ -11,6 +11,10 @@ import ansi
 import mainLoop
 
 
+alpha = 0.53836
+beta = 0.46164
+
+
 def chunks(sequence, chunkSize):
     for start in range(0, len(sequence), chunkSize):
         yield sequence[start:start + chunkSize]
@@ -62,6 +66,16 @@ class SpectrumAnalyzer(object):
         # Pre-calculate the constant used to normalize the signal data.
         self.normalizationConst = float(2 ** (self.bytes_per_frame_per_channel * 8))
 
+    def hamming(self, samples):
+        """Simple implementation of a Hamming window function.
+
+        See https://en.wikipedia.org/wiki/Window_function#Hamming_window
+
+        """
+        innerCoefficient = 2 * math.pi / (len(samples) - 1)
+        return samples * [alpha - beta * math.cos(innerCoefficient * sampleNum)
+                for sampleNum in range(len(samples))]
+
     @property
     def samplesPerWindow(self):
         return self.framesPerWindow * self.channels
@@ -77,7 +91,7 @@ class SpectrumAnalyzer(object):
     def calcWindow(self, dataArr, windowNum):
         fromSample = windowNum * self.samplesPerWindow
         toSample = fromSample + self.samplesPerWindow
-        self.dataBuffer[:] = dataArr[fromSample:toSample] / self.normalizationConst
+        self.dataBuffer[:] = self.hamming(dataArr[fromSample:toSample] / self.normalizationConst)
 
         fftOut = self.fft()
 
