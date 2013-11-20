@@ -66,7 +66,8 @@ class AnalyzerProcess(mainLoop.QueueHandlerProcess):
 
         if messageType == 'chunk':
             spectrum = self.analyzer.spectrum
-            self.csv.writerow(spectrum)
+            if spectrum:
+                self.csv.writerow(spectrum)
 
     def onShutdown(self):
         super(AnalyzerProcess, self).onShutdown()

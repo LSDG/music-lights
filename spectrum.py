@@ -76,6 +76,8 @@ class SpectrumAnalyzer(object):
         # Pre-calculate the constant used to normalize the signal data.
         self.normalizationConst = float(2 ** (self.bytes_per_frame_per_channel * 8))
 
+        self.debug = gcp.get_def('spectrum', 'debug', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+
     def hamming(self):
         """Simple implementation of a Hamming window function.
 
@@ -123,9 +125,10 @@ class SpectrumAnalyzer(object):
 
             numWindows = int(math.floor(len(rawData) / self.bytesPerFrame / self.framesPerWindow))
             if numWindows == 0:
-                ansi.warn("Need {} frames for a window! (only have {})",
-                        self.framesPerWindow, len(rawData) / self.bytesPerFrame)
-                return [0 for _ in range(self.frequencyBands)]
+                if self.debug:
+                    ansi.warn("Need {} frames for a window! (only have {})",
+                            self.framesPerWindow, len(rawData) / self.bytesPerFrame)
+                return
 
             if len(rawData) % (self.framesPerWindow * self.bytesPerFrame) != 0:
                 self._dataSinceLastSpectrum = [rawData[numWindows * self.framesPerWindow * self.bytesPerFrame:]]
