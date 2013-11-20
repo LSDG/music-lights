@@ -156,7 +156,7 @@ def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None, standalo
     sampleGen = SampleGen(files, gcp)
     sampleGen.onSongChanged.add(lambda *a, **kw: displayFileStarted(sampleGen))
 
-    SampleOutput(sampleGen).play()
+    SampleOutput(sampleGen, gcp).play()
 
     SpectrumLightController(sampleGen)
 
