@@ -120,9 +120,11 @@ class WebListener(BaseProcess):
 
 
 def CommandIterator(controller, fileList, controllerQueue):
+    firstSong = True
     while True:
         if controller.nextCommand is not None:
             if 'play next' in controller.nextCommand[0]:
+                firstSong = False
                 print('CommandIterator got:', controller.nextCommand)
                 global songStart
                 songStart = time.time()
@@ -135,6 +137,8 @@ def CommandIterator(controller, fileList, controllerQueue):
                 controller.nextCommand = None
                 yield choice(fileList)
         else:
+            if not firstSong:
+                controller.playerQueue.put({'song': 'foobar'})
             print('CI get')
             controller.nextCommand = controllerQueue.get()
 
