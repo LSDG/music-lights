@@ -91,17 +91,22 @@ class SpectrumAnalyzer(object):
         self._currentSpectrum = None
         self._dataSinceLastSpectrum.append(data)
 
-    def calcWindow(self, dataArr, windowNum):
+    def calcWindow(self, channelData, windowNum):
         fromSample = windowNum * self.samplesPerWindow
         toSample = fromSample + self.samplesPerWindow
-        self.dataBuffer[:] = self.windowCoefficients * dataArr[fromSample:toSample] / self.normalizationConst
 
-        fftOut = self.fft()
+        fftOut = []
+        for channel in channelData:
+            self.dataBuffer[:] = self.windowCoefficients * channel[fromSample:toSample] / self.normalizationConst
 
-        return map(
-                (lambda arr: sum(arr) / self.sliceWindow),
-                chunks(abs(fftOut[1:self.frequencyBands * self.sliceWindow + 1]), self.sliceWindow)
-                )
+            channelFFTOut = self.fft()
+
+            fftOut.extend(map(
+                    (lambda arr: sum(arr) / self.sliceWindow),
+                    chunks(abs(channelFFTOut[1:self.frequencyBands * self.sliceWindow + 1]), self.sliceWindow)
+                    ))
+
+        return fftOut
 
     @property
     def spectrum(self):
@@ -122,13 +127,16 @@ class SpectrumAnalyzer(object):
 
             dataArr = fromstring(rawData, dtype=short)
 
+            # Reshape the array so we can chop it to the correct number of frames.
+            dataArr = dataArr.reshape((-1, self.channels))
+
             if not self.onSpectrum:
                 # No per-spectrum listeners, so ditch all but the most recent spectrum window.
                 dataArr = dataArr[-self.samplesPerWindow:]
                 numWindows = 1
 
             for windowNum in range(numWindows):
-                fftOut = self.calcWindow(dataArr, windowNum)
+                fftOut = self.calcWindow(dataArr.T, windowNum)
 
                 mainLoop.currentProcess.queueCall(self.onSpectrum, fftOut)
 
