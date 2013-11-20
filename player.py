@@ -24,11 +24,13 @@ from sampleGen import SampleGen
 gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
-usePygame = gcp.get_def('main', 'usePygame', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
-useSFML = gcp.get_def('main', 'useSFML', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
-useGPIO = gcp.get_def('main', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
 soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
+
+usePygame = gcp.get_def('output', 'usePygame', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+useSFML = gcp.get_def('output', 'useSFML', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+
+useGPIO = gcp.get_def('lights', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 
 files = sys.argv[1:]
 

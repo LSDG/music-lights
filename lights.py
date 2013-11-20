@@ -19,18 +19,17 @@ serialDevice = gcp.get_def('serial', 'device', '/dev/ttyAMA0')
 serialSpeed = int(gcp.get_def('serial', 'speed', 115200))
 serialDebug = gcp.get_def('serial', 'debug', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 
+delayBetweenUpdates = float(gcp.get_def('lights', 'delayBetweenUpdates', 0.05))
+
 
 class LightController(object):
     def __init__(self, analyzer, config):
         self.analyzer = ref(analyzer)
-        self.lastLightUpdate = datetime.datetime.now()
 
         self.songConfig = SongConfig(config)
 
         ansi.info('Serial connecting to {} at {} bps', serialDevice, serialSpeed)
         self.serial = serial.Serial(serialDevice, serialSpeed, timeout=1)
-
-        self.delayBetweenUpdates = 0.2
 
         # Assume we're already started unless we're using the USB interface to the Arduino.
         self.ready = 'ttyACM' not in serialDevice
@@ -38,6 +37,7 @@ class LightController(object):
             if self.readFromSerial().startswith('LSDG Holiday Light controller ver '):
                 self.ready = True
 
+        self.lastLightUpdate = datetime.datetime.now()
         self.previousLightStates = [False] * analyzer.frequencyBands
 
     def readFromSerial(self):
@@ -59,18 +59,13 @@ class LightController(object):
         self.serial.flush()
 
     def _onChunk(self):
-        #now = datetime.datetime.now()
-        #if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
-        #    self.lastLightUpdate = now
+        now = datetime.datetime.now()
+        if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
+            self.lastLightUpdate = now
 
         spectrum = self.analyzer().spectrum
         bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
         lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
-
-        #for channel, value in enumerate(lightStates):
-        #    if not value:
-        #        if self.previousLightStates[channel]:
-        #            lightStates[channel] = bands[channel] > self.songConfig.frequencyOffThresholds[channel]
 
         changeCmd = []
         for channel, value in enumerate(lightStates):

@@ -4,9 +4,15 @@ from weakref import ref
 
 import RPi.GPIO as GPIO
 
+from ConfigParserDefault import ConfigParserDefault
 from mainLoop import QueueHandlerProcess
 from songConfig import SongConfig
 
+
+gcp = ConfigParserDefault()
+gcp.read('config.ini')
+
+delayBetweenUpdates = float(gcp.get_def('lights', 'delayBetweenUpdates', 0.05))
 
 pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 
@@ -14,7 +20,6 @@ pins = [0, 1, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23, 24, 25]
 class LightController(object):
     def __init__(self, analyzer, config):
         self.analyzer = ref(analyzer)
-        self.lastLightUpdate = datetime.datetime.now()
 
         self.songConfig = SongConfig(config)
 
@@ -23,11 +28,12 @@ class LightController(object):
             GPIO.setup(pin, GPIO.OUT)
             GPIO.output(pin, False)
 
+        self.lastLightUpdate = datetime.datetime.now()
         self.previousLightStates = [False] * analyzer.frequencyBands
 
     def _onChunk(self):
         now = datetime.datetime.now()
-        if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
+        if (now - self.lastLightUpdate).total_seconds() > delayBetweenUpdates:
             self.lastLightUpdate = now
 
             spectrum = self.analyzer().spectrum
