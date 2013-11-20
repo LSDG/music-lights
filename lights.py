@@ -49,30 +49,32 @@ class LightController(object):
 
     def writeToSerial(self, data):
         ansi.stdout(
-                "{style.bold.fg.black}Arduino <- RPi :{style.none} {data}",
-                data=data.rstrip('\n')
+                "{style.bold.fg.black}Arduino <- RPi :{style.none} {data!r}",
+                data=data
                 )
         self.serial.write(data)
+        self.serial.flush()
 
     def _onChunk(self):
-        now = datetime.datetime.now()
-        if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
-            self.lastLightUpdate = now
+        #now = datetime.datetime.now()
+        #if (now - self.lastLightUpdate).total_seconds() > self.delayBetweenUpdates:
+        #    self.lastLightUpdate = now
 
-            spectrum = self.analyzer().spectrum
-            bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
-            lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
+        spectrum = self.analyzer().spectrum
+        bands = [spectrum[i] for i in self.songConfig.frequencyBandOrder]
+        lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
 
-            for channel, value in enumerate(lightStates):
-                if not value:
-                    if self.previousLightStates[channel]:
-                        lightStates[channel] = bands[channel] > self.songConfig.frequencyOffThresholds[channel]
+        #for channel, value in enumerate(lightStates):
+        #    if not value:
+        #        if self.previousLightStates[channel]:
+        #            lightStates[channel] = bands[channel] > self.songConfig.frequencyOffThresholds[channel]
 
-            changeCmd = []
-            for channel, value in enumerate(lightStates):
-                if self.previousLightStates[channel] != value:
-                    changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
+        changeCmd = []
+        for channel, value in enumerate(lightStates):
+            if self.previousLightStates[channel] != value:
+                changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
 
+        if changeCmd:
             self.writeToSerial(''.join(changeCmd) + '\n')
 
             self.previousLightStates = lightStates
