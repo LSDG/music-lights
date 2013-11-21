@@ -67,11 +67,11 @@ class LightController(object):
         spectrum = self.analyzer().spectrum
         spectrumBands = len(spectrum) - 1
         bands = [spectrum[max(i, spectrumBands)] for i in self.songConfig.frequencyBandOrder]
-        lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
+        lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(spectrum)]
 
         changeCmd = []
         for channel, value in enumerate(lightStates):
-            if self.previousLightStates[channel] != value and time.time() - self.lightUpdateTimes[channel] > 0.2:
+            if self.previousLightStates[channel] != value  and (time.time() - self.lightUpdateTimes[channel] > 0.2):
                 self.lightUpdateTimes[channel] = time.time()
                 changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
 
