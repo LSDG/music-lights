@@ -4,6 +4,8 @@ freqbins <- function(filename) {
 
   #The last column seems to be all NAs. Thus, remove it from the data frame.
   results <- results[,-ncol(results)]
+  #Remove 0 frequency columns. This will need to be changed whenever the final naming convention is added.
+  tempdf[,-which(names(results) %in% c('Left.0.0.Hz', 'Right.0.0.Hz'))]
   results <- results[(rowSums(results) > 0),]
 
   results.mat <- as.matrix(results)
