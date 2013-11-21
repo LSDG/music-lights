@@ -39,6 +39,7 @@ class LightController(object):
 
         self.lastLightUpdate = datetime.datetime.now()
         self.previousLightStates = [False] * analyzer.frequencyBands
+        self.lightUpdateTimes = [time.time() for x in range(int(config.get('spectrum', 'frequencyBands')))]
 
     def readFromSerial(self):
         data = self.serial.readline()
@@ -70,7 +71,7 @@ class LightController(object):
 
         changeCmd = []
         for channel, value in enumerate(lightStates):
-            if self.previousLightStates[channel] != value:
+            if self.previousLightStates[channel] != value and time.time() - self.lightUpdateTimes[channel] > 0.2:
                 changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
 
         if changeCmd:
