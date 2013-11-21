@@ -72,6 +72,7 @@ class LightController(object):
         changeCmd = []
         for channel, value in enumerate(lightStates):
             if self.previousLightStates[channel] != value and time.time() - self.lightUpdateTimes[channel] > 0.2:
+                self.lightUpdateTimes[channel] = time.time()
                 changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
 
         if changeCmd:
