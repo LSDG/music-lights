@@ -81,7 +81,7 @@ class BaseProcess(object):
             print()
             print("User interrupted; exiting.")
 
-        except Exception as ex:
+        except Exception:
             print('Got Exception while looping:', traceback.format_exc())
 
         finally:
