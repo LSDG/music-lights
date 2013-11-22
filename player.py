@@ -119,7 +119,6 @@ class WebListener(BaseProcess):
         print('WebListener got message', message)
         super(WebListener, self).onMessage(messageType, message)
         self.nextCommand = (messageType, message)
-        next(self.gen.filenameIter)
 
 
 def CommandIterator(controller, fileList, controllerQueue):
