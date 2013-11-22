@@ -58,7 +58,7 @@ class WebController(BaseNamespace):
 
     def on_disconnect(self):
         print('WebController disconnected')
-        self.controllerQueue.put(('lost connection', ''))
+        self.controllerQueue.put(('no connection', ''))
 
     def generatePlaylist(self):
         playlist = list()
