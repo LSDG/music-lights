@@ -60,20 +60,22 @@ class LightController(object):
 
     def _onChunk(self):
         spectrum = self.analyzer().spectrum
-        spectrumBands = len(spectrum) - 1
-        bands = [spectrum[min(i, spectrumBands)] for i in self.songConfig.frequencyBandOrder]
-        lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
 
-        changeCmd = []
-        for channel, value in enumerate(lightStates):
-            if self.previousLightStates[channel] != value  and (time.time() - self.lightUpdateTimes[channel] > 0.2):
-                self.lightUpdateTimes[channel] = time.time()
-                changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
+        if spectrum is not None:
+            spectrumBands = len(spectrum) - 1
+            bands = [spectrum[min(i, spectrumBands)] for i in self.songConfig.frequencyBandOrder]
+            lightStates = [level > self.songConfig.frequencyThresholds[channel] for channel, level in enumerate(bands)]
 
-        if changeCmd:
-            self.writeToSerial(''.join(changeCmd) + '\n')
+            changeCmd = []
+            for channel, value in enumerate(lightStates):
+                if self.previousLightStates[channel] != value  and (time.time() - self.lightUpdateTimes[channel] > 0.2):
+                    self.lightUpdateTimes[channel] = time.time()
+                    changeCmd.append('p{}s{}'.format(channel, 1 if value else 0))
 
-            self.previousLightStates = lightStates
+            if changeCmd:
+                self.writeToSerial(''.join(changeCmd) + '\n')
+
+                self.previousLightStates = lightStates
 
     def onMessage(self, message):
         messageType = message[0]
