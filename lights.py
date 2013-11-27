@@ -57,13 +57,8 @@ class LightController(object):
                     data=data
                     )
         self.serial.write(data)
-        self.serial.flush()
 
     def _onChunk(self):
-        now = datetime.datetime.now()
-        if (now - self.lastLightUpdate).total_seconds() > delayBetweenUpdates:
-            self.lastLightUpdate = now
-
         spectrum = self.analyzer().spectrum
         spectrumBands = len(spectrum) - 1
         bands = [spectrum[min(i, spectrumBands)] for i in self.songConfig.frequencyBandOrder]
