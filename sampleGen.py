@@ -3,12 +3,14 @@ import json
 import audioread
 import hsaudiotag.auto
 
+import ansi
+
 import mainLoop
 
 
 class SampleGen(object):
     def __init__(self, filenames, config, **kwargs):
-        self.framesPerChunk = kwargs.get('framesPerChunk', 4096)
+        self.framesPerChunk = kwargs.get('framesPerChunk', 1024)
 
         self.onSongChanged = set()
         self.onStopped = set()
@@ -23,10 +25,15 @@ class SampleGen(object):
         self.loadSettings(config)
 
     def loadSettings(self, gcp):
-        self.bytes_per_frame_per_channel = int(gcp.get_def('main', 'bytes_per_frame_per_channel', 2))
+        self.bytes_per_frame_per_channel = int(gcp.get_def('input', 'bytes_per_frame_per_channel', 2))
 
-    def _loadNextFile(self):
-        self.currentFilename = next(self.filenameIter)
+    def loadNextFile(self):
+        self.currentFilename = next(self.filenameIter).encode('utf-8')
+
+        if self.currentFilename is None:
+            mainLoop.currentProcess.queuedCallbacks.append(self.nextChunk)
+            return
+
         print('Loading file {!r}.'.format(self.currentFilename))
 
         tags = hsaudiotag.auto.File(self.currentFilename)
@@ -49,6 +56,13 @@ class SampleGen(object):
                 'samplerate': self.samplerate,
                 'duration': self.duration
                 }
+        ansi.info("Loaded song {!r}; channels: {}; samplerate: {}; duration: {} (duration from tags: {})",
+                self.currentFilename,
+                self.channels,
+                self.samplerate,
+                self.duration,
+                tags.duration
+                )
 
         mainLoop.currentProcess.queueCall(self.onSongChanged, tags, songInfo)
 
@@ -94,18 +108,18 @@ class SampleGen(object):
 
     def nextChunk(self):
         if self.sampleIter is None:
-            self._loadNextFile()
+            self.loadNextFile()
 
         try:
             data = next(self.sampleIter)
         except (StopIteration, AttributeError):
             # Either we haven't loaded a song yet, or the one we were playing ended. Load another.
-            self._loadNextFile()
+            self.loadNextFile()
             data = next(self.sampleIter)
 
         self.totalFramesRead += self.framesPerChunk
 
-        mainLoop.currentProcess.queuedCallbacks.append(lambda: [handler(data) for handler in self.onSample])
+        mainLoop.currentProcess.queueCall(self.onSample, data)
 
         self.currentData = data
         return data

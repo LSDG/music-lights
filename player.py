@@ -1,34 +1,36 @@
 #!/bin/env python
 from __future__ import print_function
 import atexit
-from ConfigParserDefault import ConfigParserDefault
 from itertools import cycle
 from multiprocessing import Process, Queue
 import os
 from Queue import Full as QueueFull
 import sys
+import time
+from random import choice
 
-import pygame.mixer
-import pygame.locals
+try:
+    import gobject
+except ImportError:
+    pass
 
 import ansi
 
+from ConfigParserDefault import ConfigParserDefault
 import mainLoop
 from sampleGen import SampleGen
-
-
-DONE_PLAYING_CHUNK = pygame.locals.USEREVENT
-
-STOP = 0
-CONTINUE = 1
 
 
 gcp = ConfigParserDefault()
 gcp.read('config.ini')
 
-useGPIO = gcp.get_def('main', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 lightProcessNice = int(gcp.get_def('main', 'lightProcessNice', 0))
 soundProcessNice = int(gcp.get_def('main', 'soundProcessNice', 0))
+
+usePygame = gcp.get_def('output', 'usePygame', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+useSFML = gcp.get_def('output', 'useSFML', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
+
+useGPIO = gcp.get_def('lights', 'useGPIO', 'f').lower() not in ('f', 'false', 'n', 'no', '0', 'off')
 
 files = sys.argv[1:]
 
@@ -78,31 +80,6 @@ class SpectrumLightController(object):
                 ansi.error("Message queue to light process full! Continuing...")
 
 
-class SampleOutput(object):
-    def __init__(self, sampleGen):
-        self.sampleGen = sampleGen
-
-        self.channel = pygame.mixer.Channel(0)
-        self.channel.set_endevent(DONE_PLAYING_CHUNK)
-
-        self.queueNextSound()  # Start playing the first chunk.
-        self.queueNextSound()  # Queue the next chunk.
-
-        mainLoop.currentProcess.eventHandlers[DONE_PLAYING_CHUNK] = self.queueNextSound
-
-    def queueNextSound(self, event=None):
-        ansi.stdout(
-                "{cursor.col.0}{clear.line.all}Current time:"
-                    " {style.bold}{file.elapsedTime: >7.2f}{style.none} / {file.duration: <7.2f}",
-                file=self.sampleGen,
-                suppressNewline=True
-                )
-
-        chunk = pygame.mixer.Sound(buffer(self.sampleGen.nextChunk()))
-
-        chunk.play()
-
-
 def displayFileStarted(sampleGen):
     print()
     ansi.stdout(
@@ -113,18 +90,81 @@ def displayFileStarted(sampleGen):
             file=sampleGen
             )
 
+songStart = None
 
-def runPlayerProcess(playerQueue, controllerQueue, nice=None):
-    process = mainLoop.PyGameProcess(controllerQueue)
 
-    sampleGen = SampleGen(cycle(files), gcp)
-    sampleGen.onSongChanged.add(lambda *a: displayFileStarted(sampleGen))
+if usePygame:
+    import pygame_output
+    SampleOutput = pygame_output.SampleOutput
+    BaseProcess = pygame_output.PyGameProcess
 
-    SampleOutput(sampleGen)
+elif useSFML:
+    import pysfml_output
+    SampleOutput = pysfml_output.SampleOutput
+    BaseProcess = mainLoop.QueueHandlerProcess
+
+else:
+    import alsa_output
+    SampleOutput = alsa_output.SampleOutput
+    BaseProcess = alsa_output.ALSAProcess
+
+
+class WebListener(BaseProcess):
+    def __init__(self, controllerQueue, playerQueue):
+        super(WebListener, self).__init__(controllerQueue)
+        self.nextCommand = None
+        self.playerQueue = playerQueue
+
+    def onMessage(self, messageType, message):
+        print('WebListener got message', message)
+        super(WebListener, self).onMessage(messageType, message)
+        self.nextCommand = (messageType, message)
+
+
+def CommandIterator(controller, fileList, controllerQueue):
+    firstSong = True
+    while True:
+        if controller.nextCommand is not None:
+            if 'play next' in controller.nextCommand[0]:
+                firstSong = False
+                print('CommandIterator got:', controller.nextCommand)
+                global songStart
+                songStart = time.time()
+                nextThing = controller.nextCommand[1]
+                controller.nextCommand = None
+                yield nextThing
+            elif 'stop' in controller.nextCommand[0]:
+                raise StopIteration
+            elif 'no connection' in controller.nextCommand[0]:
+                controller.nextCommand = None
+                yield choice(fileList)
+        else:
+            if not firstSong:
+                controller.playerQueue.put({'song': 'foobar'})
+            print('CI get')
+            controller.nextCommand = controllerQueue.get()
+
+
+def runPlayerProcess(playerQueue, controllerQueue, fileList, nice=None, standalone=False):
+    process = WebListener(controllerQueue, playerQueue)
+
+    if standalone:
+        files = cycle(fileList)
+        process = BaseProcess(controllerQueue)
+    else:
+        files = CommandIterator(process, fileList, controllerQueue)
+
+    sampleGen = SampleGen(files, gcp)
+    sampleGen.onSongChanged.add(lambda *a, **kw: displayFileStarted(sampleGen))
+
+    SampleOutput(sampleGen, gcp).play()
+
     SpectrumLightController(sampleGen)
+
+    process.gen = sampleGen
 
     process.loop()
 
 
 if __name__ == '__main__':
-    runPlayerProcess(Queue(), Queue())
+    runPlayerProcess(Queue(), Queue(), files, standalone=True)

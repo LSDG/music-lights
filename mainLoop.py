@@ -1,11 +1,10 @@
 from __future__ import print_function
 from ConfigParserDefault import ConfigParserDefault
 import collections
+import functools
 import os
 from Queue import Empty as QueueEmpty
-
-import pygame
-import pygame.locals
+import traceback
 
 import ansi
 
@@ -46,11 +45,19 @@ class BaseProcess(object):
         if not funcOrSet:
             return
 
-        func = funcOrSet
         if isinstance(funcOrSet, set):
-            func = lambda: [f(*args, **kwargs) for f in funcOrSet]
+            func = functools.partial(self.callCallbacks, funcOrSet, *args, **kwargs)
+        else:
+            func = functools.partial(self.callCallbacks, [funcOrSet], *args, **kwargs)
 
         self.queuedCallbacks.append(func)
+
+    def callCallbacks(self, callbacks, *args, **kwargs):
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except:
+                print("Exception calling {!r}(*{!r}, **{!r}):".format(cb, args, kwargs), traceback.format_exc())
 
     def loop(self):
         ansi.info("Starting process run loop...")
@@ -73,6 +80,9 @@ class BaseProcess(object):
         except KeyboardInterrupt:
             print()
             print("User interrupted; exiting.")
+
+        except Exception:
+            print('Got Exception while looping:', traceback.format_exc())
 
         finally:
             ansi.info("Process shutting down...")
@@ -100,41 +110,3 @@ class QueueHandlerProcess(BaseProcess):
             self.onMessage(messageType, message)
         except QueueEmpty:
             pass
-        #except Exception as exc:
-        #    print('Exception while reading from queue:', exc)
-
-
-class PyGameProcess(QueueHandlerProcess):
-    def __init__(self, messageQueue, nice=None):
-        super(PyGameProcess, self).__init__(messageQueue, nice)
-
-        self.eventHandlers = {
-                pygame.locals.QUIT: self.quit,
-                }
-
-        pygame.init()
-
-    def unhandledEvent(self, event):
-        ansi.warn("Unhandled event! {!r}", event)
-
-    def processEvent(self, event):
-        if event.type == pygame.locals.NOEVENT:
-            return
-
-        handler = self.eventHandlers.get(event.type, self.unhandledEvent)
-        handler(event)
-
-    def eachLoop(self):
-        super(PyGameProcess, self).eachLoop()
-
-        #self.processEvent(pygame.event.wait())
-        self.afterEachCallback()
-
-    def afterEachCallback(self):
-        # Process waiting events before moving on to the next callback.
-        for event in pygame.event.get():
-            self.processEvent(event)
-
-    def onShutdown(self):
-        super(PyGameProcess, self).onShutdown()
-        pygame.quit()

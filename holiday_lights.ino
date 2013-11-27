@@ -9,7 +9,7 @@ const int PINCOUNT = 32;           // the number of pins (i.e. the length of the
 byte  ledPins[] = { 
   22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53 };   // an array of pin numbers to which LEDs are attached
 boolean channelstate[]={
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 };
 
 //delay fo mechanical relays, mechanical relays should not be switched faster than 5 times a second
 const int DelayTimer = 200; 
@@ -33,9 +33,11 @@ void setup() {
   {
     Serial.print("testing channel ");
     Serial.println(thisPin);
+    channelstate[thisPin] =0;
+    SetChannels();
+    delay(DelayTimer);
     channelstate[thisPin] =1;
     SetChannels();
-    channelstate[thisPin] =0;
 
   }
 
@@ -84,7 +86,7 @@ void SetChannels() //turns pins high or low according to values stored in arrays
     digitalWrite(ledPins[thisPin],channelstate[thisPin]); 
 
   }
-  delay(DelayTimer);
+  //delay(DelayTimer);
 }
 
 
@@ -119,7 +121,11 @@ void ProcessCommand()
         CHstate =1;
         if (CommandByte == '0')
         {
-          CHstate = 0;
+          CHstate = 1;
+        }
+        else
+        {
+            CHstate = 0;
         }
         channelstate[OneChan.toInt()] =CHstate ;
       }
@@ -137,11 +143,3 @@ void ProcessCommand()
 
 Command = 0;  
 }
-
-
-
-
-
-
-
-
